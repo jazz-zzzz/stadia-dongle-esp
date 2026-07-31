@@ -1,122 +1,232 @@
 # Stadia 无线手柄接收器
 
-这是一个面向 ESP32-S3 的开源固件。它通过蓝牙低功耗（BLE）连接一到两个 Google Stadia 手柄，并通过 USB 将它们呈现为：
+让 Google Stadia 手柄继续在 Windows 上无线使用，并保留双马达震动。
 
-- 有线 **Xbox 360 / XInput 手柄**
-- HID 鼠标
-- HID 键盘与消费控制设备
+一块 ESP32-S3 会连接 Stadia 手柄，再通过 USB 向电脑提供 Xbox 360 兼容手柄、键盘和鼠标接口。无需安装专用驱动，也不依赖云服务。
 
-固件内置一个完全本地运行的 Web GUI，可用于手柄配对、额外按键映射、状态查看和 OTA 更新。
+```text
+Stadia 手柄 ←── Bluetooth LE ──→ ESP32-S3 ←── USB ──→ Windows
+```
 
 本项目基于 [danzig666/stadia-dongle-esp](https://github.com/danzig666/stadia-dongle-esp)，其上游为 [Scalee/stadia-dongle](https://github.com/Scalee/stadia-dongle)。
 
-## 为什么需要接收器
+## 能做什么
 
-Google 关闭 Stadia 后，为 Stadia 手柄提供了蓝牙模式固件。手柄在 Windows 上可以通过蓝牙正常输入，但 Windows BLE HID 驱动无法向它发送正确的震动输出报告，因此无线模式通常没有震动。
+- 同时连接最多 2 个 Stadia 手柄
+- Xbox 360 / XInput 按键、摇杆和模拟扳机
+- 将游戏的双马达震动转发到 Stadia 手柄
+- 将 Assistant 和 Capture 映射为独立键盘按键
+- 一键切换鼠标模式
+- 通过中文 Web GUI 配对、查看状态和修改配置
+- 通过 USB 配置，不会占用 Windows 当前的 Wi-Fi
+- 按需启动 Wi-Fi 热点，用于 OTA 和故障恢复
+- 保存配对记录和按键配置，断电后仍然保留
 
-ESP32-S3 在手柄和电脑之间充当协议桥：
+Stadia 手柄没有扳机马达，因此本项目不提供 Xbox Series 手柄那种扳机震动。
 
-```text
-Stadia 手柄 ←── BLE ──→ ESP32-S3 ←── USB ──→ 电脑
-```
+## 需要什么
 
-ESP32-S3 可以使用手柄要求的 BLE GATT 写入方式控制两个震动马达；电脑端只会看到一个标准的有线 Xbox 360 手柄，无需安装专用驱动。
-
-## 主要功能
-
-- 一到两个 Stadia BLE 手柄
-- 标准 Xbox 360 / XInput 输入与双马达震动
-- 每个手柄独立的鼠标模式
-- Assistant 和 Capture 额外按键
-- HID 键盘、媒体键和远程唤醒
-- USB WebHID 配置 GUI，不影响 Windows 当前 Wi-Fi
-- 本地 Wi-Fi Web GUI，作为 OTA 和恢复入口
-- 配对信息和配置持久化
-- 双 OTA 分区
-- 可选 WS2812/SK6812 状态灯
-
-## 硬件要求
-
-- 带原生 USB OTG 的 **ESP32-S3** 开发板
-- 4 MB Flash（默认）或 16 MB Flash
-- 可选：连接到 GPIO 48 的 WS2812/SK6812 RGB LED，可在 `menuconfig` 中修改
-- 从源码构建需要 [ESP-IDF v6.x](https://github.com/espressif/esp-idf)
+- 带原生 USB OTG 的 ESP32-S3 开发板
+- 4 MB Flash 或更大
+- 一根支持数据传输的 USB 线
+- 桌面版 Chrome 或 Edge
 
 开发板通常有两个 USB 接口：
 
-- **COM/UART 接口**：用于首次烧录
-- **原生 USB 接口**：正常使用时连接电脑，模拟 Xbox 360、键盘和鼠标
+- **COM/UART**：烧录固件
+- **USB/OTG**：日常使用，向电脑模拟手柄
 
-## 两类网页入口
+如果你的开发板只有一个接口，请以开发板说明书为准。
 
-仓库中包含两套用途不同的网页。
+## 从零开始
 
-### 1. 首次安装页面
+### 1. 刷入固件
 
-文件位于 `docs/`，通过 ESP Web Tools 和 WebSerial 将完整固件写入 ESP32-S3。
+1. 用开发板的 **COM/UART** 接口连接电脑。
+2. 打开[在线安装器](https://jazz-zzzz.github.io/stadia-dongle-esp/)。
+3. 点击 **Install**，选择开发板对应的 COM 口。
+4. 等待安装完成，然后断开 USB。
+5. 改用开发板的 **USB/OTG** 接口连接电脑。
 
-- 使用时机：开发板首次烧录或完整恢复
-- 连接方式：COM/UART USB
-- 写入文件：`docs/firmware-merged.bin`
-- 当前在线入口：[jazz-zzzz.github.io/stadia-dongle-esp](https://jazz-zzzz.github.io/stadia-dongle-esp/)
+安装完成后，Windows 不一定弹出通知。可以运行 `joy.cpl`，检查是否出现 Xbox 360 兼容手柄。
 
-当前 `docs/index.html` 会从 `unpkg.com` 加载 ESP Web Tools 组件，因此在线安装器不是完全离线的。烧录数据由浏览器直接发送给开发板，但页面组件和固件仍需先从网页下载。
+如果设备仍显示为 ESP32 串口，或只有电源灯亮，按一次 **RESET/RST**，等待几秒即可。不要连续快速重启；恢复机制会把连续重启识别为故障操作。
 
-### 2. 配置 Web GUI
+### 2. 连接配置页
 
-配置页面源文件为 `main/index.html`，同一界面支持两种本地传输：
+1. 打开[中文 USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。
+2. 点击 **连接 USB**。
+3. 在浏览器设备列表中选择 Stadia 接收器。
 
-```text
-在线或 localhost 配置页 ── WebHID / 原生 USB ──▶ ESP32-S3
-http://192.168.4.1     ── HTTP / 接收器热点 ──▶ ESP32-S3
-```
+配置页通过 WebHID 直接与 ESP32 通信，不会上传手柄数据，也不会让 Windows 切换 Wi-Fi。
 
-首选入口是 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。点击 **连接 USB** 后，浏览器直接通过原生 USB 与接收器通信，Windows 继续使用原来的 Wi-Fi。
+### 3. 配对手柄
 
-`main/CMakeLists.txt` 也会将配置页面和传输脚本编译进固件。连接接收器热点后访问 `http://192.168.4.1`，同一界面会自动改用本地 HTTP API，并保留 OTA 上传功能。
+1. 在配置页点击 **开始配对**。
+2. 按住手柄的 **Stadia + Y**，直到状态灯闪烁黄色或橙色。
+3. 等待配置页显示手柄 **已就绪**。
 
-配置数据只在浏览器和接收器之间传输，并写入 ESP32 的 NVS。关闭页面、关闭热点或断电后配置仍会保留。
+“已连接”和“已就绪”不是一回事。只有显示“已就绪”后，按键、摇杆和震动才算全部可用。
 
-完全离线使用时，可在仓库根目录启动本地静态服务器：
+完整刷写可能清除 ESP32 中的旧配对密钥，但手柄仍记得旧密钥。如果手柄一直黄灯闪烁，或者出现“能震动但没有输入”：
+
+1. 在配置页忘记该手柄。
+2. 关闭手柄。
+3. 重新点击 **开始配对**。
+4. 再次按住 **Stadia + Y** 完成配对。
+
+成功一次后，后续开机通常会自动重连。
+
+## 默认按键
+
+常规按键按 Xbox 360 布局输出：
+
+| Stadia | Windows / XInput |
+|---|---|
+| A / B / X / Y | A / B / X / Y |
+| Menu | Start |
+| Options | Back |
+| Stadia | Guide |
+| LB / RB、LT / RT | 对应肩键与扳机 |
+| 摇杆、方向键 | 对应摇杆与方向键 |
+
+Xbox 360 报告没有 Assistant 和 Capture，因此它们通过独立的键盘接口输出：
+
+| Stadia 按键 | 短按 | 长按，默认 1 秒 |
+|---|---|---|
+| Assistant | F14 | 无操作 |
+| Capture | PrintScreen | F15 |
+
+F14 和 F15 默认不会触发 Windows 系统功能，很适合交给 Steam Input、AutoHotkey 或其他工具自行映射。也可以在 Web GUI 中改成 F13–F24、媒体键、方向键或其他常用按键。
+
+## 震动
+
+游戏发送的 Xbox 360 大、小马达强度会直接映射到 Stadia 手柄的两个马达。默认是线性映射，不会故意削弱震动。
+
+Steam 的控制器测试通常不会一直发送满强度，因此测试时可能感觉偏轻；这不代表固件限制了最大震动。游戏中的实际强度由游戏和 Steam Input 决定。
+
+## 鼠标模式
+
+同时按住 **Assistant + Capture** 约 2 秒即可切换：
+
+- 震动 2 次：进入鼠标模式
+- 震动 3 次：返回手柄模式
+
+鼠标模式默认使用以下映射：
+
+| Stadia | 鼠标操作 |
+|---|---|
+| 左摇杆 | 移动光标 |
+| A / B / X | 左键 / 右键 / 中键 |
+| 方向键上 / 下 | 滚轮 |
+| 右摇杆 Y 轴 | 模拟滚轮 |
+| 按住 LT | 精细移动 |
+| 按住 RT | 快速移动 |
+
+每次开机都会回到普通手柄模式。
+
+## Web GUI 与 Wi-Fi
+
+日常配置推荐使用[在线 USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。它可以：
+
+- 配对、查看和删除手柄
+- 查看实时按键、摇杆、扳机和电量
+- 修改 Assistant 和 Capture 的短按、长按动作
+- 修改长按时间
+- 启动或停止 Wi-Fi 热点
+- 重启接收器
+
+Wi-Fi 热点默认关闭，不会常驻。它只用于 OTA 或 USB 配置不可用时的恢复。
+
+正常情况下，可在 USB 配置页点击 **启动 Wi-Fi 热点**。热点名称为 `StadiaDongle-XXXX`，连接后打开 `http://192.168.4.1`。
+
+USB 页面不可用时，还有两个恢复入口：
+
+- 已连接手柄时，同时按住 **Stadia + Options + Menu** 约 5 秒。
+- 在 30 秒内快速重启接收器 3 次。
+
+热点在没有客户端连接时默认于 120 秒后关闭。快速重启 5 次会清除所有手柄绑定，只应作为最后的恢复手段。
+
+### 完全本地运行配置页
+
+USB 配置页本身没有运行时云依赖。下载仓库后，可在项目根目录运行：
 
 ```powershell
 py -m http.server 8765 --directory main
 ```
 
-然后用 Chrome 或 Edge 打开 `http://localhost:8765`。该页面不加载外部脚本；localhost 只负责提供页面文件，设备通信仍走 USB。
+然后用 Chrome 或 Edge 打开 `http://localhost:8765`。页面由本机提供，通信仍然直接走 USB。
 
-## 首次烧录
+在线安装器需要联网下载页面组件和固件；烧录过程由浏览器直接连接开发板。
 
-### 使用网页安装器
+## 更新固件
 
-推荐使用桌面版 Chrome 或 Edge：
+修改按键或常规设置不需要重新烧录，保存后会写入 ESP32 的 NVS。
 
-1. 使用开发板的 **COM/UART USB 接口**连接电脑。
-2. 打开[网页安装器](https://jazz-zzzz.github.io/stadia-dongle-esp/)。
-3. 点击 **Install**，选择正确的串口并等待烧录完成。
-4. 断开开发板。
-5. 改用开发板的**原生 USB 接口**连接电脑。
+需要升级固件时，最稳妥的方法是重新使用[在线安装器](https://jazz-zzzz.github.io/stadia-dongle-esp/)。直接覆盖即可，不需要先删除旧固件。完整刷写可能清除配对记录，因此升级后可能需要重新配对手柄。
 
-Windows 应将设备识别为 Xbox 360 手柄。
+Wi-Fi 页面也提供 OTA，但当前 OTA 流程尚未完成充分真机验证。OTA 只能上传构建产生的应用镜像 `build/stadia-dongle.bin`，不要上传完整安装镜像 `firmware-merged.bin`。
 
-### 从源码构建
+## 常见问题
+
+### 烧录器无法初始化
+
+- 确认选择的是开发板对应的 COM 口，不要选择主板自带的 COM1。
+- 尝试按一次 RESET 后重新安装。
+- 仍然失败时，按住 BOOT，再点击 Install。
+
+### 刷完后没有出现 Xbox 手柄
+
+- 确认已经从 COM/UART 口换到 USB/OTG 口。
+- 按一次 RESET，等待几秒。
+- 换一根确认支持数据传输的 USB 线。
+- 运行 `joy.cpl`，不要只依赖 Windows 弹窗。
+
+### 手柄一直黄灯闪烁
+
+这通常表示配对没有真正完成。忘记旧手柄记录后重新配对，并等待配置页显示“已就绪”。
+
+### Steam 能测试震动，但没有任何输入
+
+USB 通常已经正常，问题多半在 BLE 配对或输入通知。先检查配置页是否显示“已就绪”，以及实时按键和原始报告是否随操作变化。
+
+### 看不到 `StadiaDongle-XXXX`
+
+这是正常行为。Wi-Fi 默认关闭，请从 USB 配置页手动启动，或使用上面的恢复入口。
+
+### 配置后需要重新烧录吗
+
+不需要。按键映射和 Web GUI 设置会持久保存。
+
+## LED 状态
+
+如果开发板在 GPIO 48 上带有兼容的 RGB LED，可参考：
+
+| 灯效 | 状态 |
+|---|---|
+| 白色呼吸 | 正在启动 |
+| 暗蓝色心跳 | 正在扫描手柄 |
+| 蓝黄交替 | Wi-Fi 热点已开启 |
+| 绿色心跳 | 一个手柄已连接 |
+| 较快绿色心跳 | 两个手柄已连接 |
+| 橙色心跳 | 鼠标模式 |
+| 暗紫色心跳 | 电脑休眠 / USB 挂起 |
+| 红色呼吸 | 固件错误 |
+| 紫黄交替 | 正在 OTA |
+
+开发板上的固定红色电源灯不属于上述状态灯。
+
+## 从源码构建
+
+需要 [ESP-IDF 6.x](https://github.com/espressif/esp-idf)：
 
 ```sh
 idf.py set-target esp32s3
 idf.py build
-```
-
-`sdkconfig.defaults` 默认启用 NimBLE Central、TinyUSB、240 MHz CPU 和生产日志。默认 4 MB 分区表包含两个 OTA 应用分区。
-
-烧录：
-
-```sh
 idf.py -p <串口> flash
 ```
 
-### 生成完整安装镜像
-
-用于 ESP Web Tools 的合并镜像包含 bootloader、分区表和应用固件：
+生成用于网页安装器的完整镜像：
 
 ```sh
 esptool.py --chip esp32s3 merge_bin \
@@ -127,216 +237,11 @@ esptool.py --chip esp32s3 merge_bin \
   0x20000 build/stadia-dongle.bin
 ```
 
-## 首次设置与配对
+更多维护资料：
 
-首选 USB 配置方式：
-
-1. 烧录后，用开发板的**原生 USB 接口**连接电脑。
-2. 使用桌面版 Chrome 或 Edge 打开 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。
-3. 点击 **连接 USB**，选择 Stadia 接收器。
-4. 点击 **开始配对**。
-5. 按住手柄的 **Stadia + Y**，直到状态灯闪烁橙色。
-6. 配对成功后，绑定信息会保存到 Flash，之后开机会自动重连。
-
-USB 配置不要求 Windows 切换网络。Wi-Fi 热点默认关闭，仅在 OTA 或恢复时按需开启。正常情况下可在 USB 配置页点击 **启动 Wi-Fi 热点**；若 USB 页面不可用：
-
-1. 已连接手柄时，同时按住 **Stadia + Options + Menu** 约 5 秒；或者在 30 秒内连续重启接收器 3 次，进入恢复模式。
-2. 连接临时开放热点 **`StadiaDongle-XXXX`**。
-3. 打开 `http://192.168.4.1`，在相同界面中完成恢复或 OTA。
-
-连续重启 5 次还会清除全部手柄绑定，仅应在无法恢复配对时使用。
-
-固件也会自动扫描可用的 Stadia 手柄，因此通常不必手动点击 Start Pairing。
-
-## 手柄模式
-
-### Xbox 360 模式
-
-电脑会将每个 Stadia 手柄识别为一个 **Xbox 360 Controller for Windows**：
-
-- VID：`0x045E`
-- PID：`0x0289`
-
-| Stadia 输入 | Xbox 360 输入 |
-|---|---|
-| A / B / X / Y | A / B / X / Y |
-| LB / RB | LB / RB |
-| LT / RT | LT / RT，模拟量 |
-| LS / RS 按下 | LS / RS |
-| 左摇杆 | 左摇杆 |
-| 右摇杆 | 右摇杆 |
-| 方向键 | 方向键 |
-| Menu | Start |
-| Options | Back |
-| Stadia | Guide |
-
-### 鼠标模式
-
-同时按住 **Assistant + Capture** 约 2 秒即可切换：
-
-- 震动 2 次：进入鼠标模式
-- 震动 3 次：返回手柄模式
-
-每次开机默认进入手柄模式。鼠标模式下，Xbox 360 接口持续发送中立状态，所有操作转交给 HID 鼠标接口。
-
-| Stadia 输入 | 鼠标操作 |
-|---|---|
-| 左摇杆 | 移动光标，包含死区、加速曲线和平滑处理 |
-| A | 左键 |
-| B | 右键 |
-| X | 中键 |
-| 方向键上/下 | 滚轮，每次 ±1 |
-| 右摇杆 Y 轴 | 模拟滚轮 |
-| 按住 LT | 精细模式，速度 ÷ 3 |
-| 按住 RT | 快速模式，速度 × 2 |
-| Stadia / LB / RB / LS / RS / Menu / Options | 不输出鼠标动作 |
-
-鼠标报告由 125 Hz 硬件定时器驱动。
-
-### 双手柄
-
-最多可同时配对和使用 **2 个手柄**。每个手柄在电脑上显示为独立的 Xbox 360 手柄，并拥有独立的鼠标模式和额外按键状态。
-
-| 已连接手柄数 | BLE 连接间隔 | 预计更新率 |
-|---|---:|---:|
-| 1 | 7.5 ms | 约 133 Hz |
-| 2 | 11–15 ms | 约 67–91 Hz |
-
-Wi-Fi AP 开启时，固件会暂停 BLE 扫描以减少 2.4 GHz 共存干扰；已经建立的 BLE 连接和输入通知不会中断。
-
-Wi-Fi AP 不会常驻。它仅在 USB 页面、恢复手势或快速重启恢复流程明确请求后启动；没有 Wi-Fi 客户端连接时，默认 120 秒后自动关闭。
-
-## 额外按键
-
-Xbox 360 的 XInput 报告没有 Assistant 和 Capture 对应的按键位。固件因此使用独立的 **Boot Keyboard + Consumer Control HID** 接口发送这两个按键。
-
-默认配置：
-
-| Stadia 按键 | 短按 | 长按，默认 1 秒 |
-|---|---|---|
-| Assistant | F14 | 无 |
-| Capture | PrintScreen | F15 |
-
-F14 和 F15 默认不触发 Windows 系统功能，适合交给 Steam、AutoHotkey 或其他工具自行映射。Web GUI 可重新设置短按和长按动作，目前提供 37 种动作：
-
-- F13–F24
-- PrintScreen、Escape、Space、Enter、Tab、Backspace
-- Insert、Delete、Home、End、Page Up、Page Down
-- 方向键
-- 音量加减、静音
-- 媒体播放/暂停、上一曲、下一曲
-- 仅远程唤醒
-
-复杂的按键组合和按游戏映射可以继续交给 Steam Input、PowerToys 或其他本地软件处理。
-
-## 本地 Web GUI
-
-推荐通过原生 USB 和 [在线配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html) 使用 Web GUI。也可以从 localhost 完全离线运行，或在 Wi-Fi AP 开启时通过 `http://192.168.4.1` 访问。
-
-| 页面位置 | 设备传输 | Windows Wi-Fi | OTA |
-|---|---|---|---|
-| GitHub Pages / localhost | WebHID + 原生 USB | 保持原连接 | 暂不支持 |
-| `http://192.168.4.1` | 本地 HTTP + 接收器热点 | 需要切换到热点 | 支持 |
-
-WebHID 需要桌面版 Chrome 或 Edge。浏览器首次连接时会显示设备选择器；授权后页面可静默重新连接。同一来源的多个页面会通过 Web Locks 自动互斥；不同来源（例如 GitHub Pages 与 localhost）无法共享浏览器锁，因此仍不要同时连接同一个接收器。
-
-当前界面提供：
-
-- BLE、USB、Wi-Fi AP 和固件状态
-- 每个手柄的名称、地址、电量和鼠标模式
-- 实时按键、摇杆、扳机与原始报告
-- 开始或停止配对
-- 查看和删除已绑定手柄
-- Assistant/Capture 短按与长按动作
-- 长按判定时间
-- Web GUI 自动关闭时间
-- 电脑休眠时是否关闭 AP
-- OTA 固件上传
-- 重启和关闭 Web GUI
-
-Wi-Fi 热点默认关闭，不会因为首次烧录、没有手柄绑定、手柄断开或 Assistant 长按而自动启动。可从 USB 页面手动启动；USB 不可用时，可用 **Stadia + Options + Menu** 长按或快速重启恢复流程临时启动。没有客户端连接时，AP 默认在 120 秒后自动关闭，可在 GUI 中修改超时时间。
-
-### 配置是否需要重新烧录
-
-通过 Web GUI 修改的配置会写入 NVS，不需要重新烧录固件。只有增加固件尚未实现的新功能或底层协议时，才需要更新固件。
-
-### OTA 更新
-
-Web GUI 的 `/api/update` 接口会将上传文件写入下一个 OTA 应用分区，成功后切换启动分区。
-
-OTA 应上传构建产生的应用镜像：
-
-```text
-build/stadia-dongle.bin
-```
-
-不要将用于首次完整烧录的 `docs/firmware-merged.bin` 上传到 OTA 页面。
-
-当前 OTA 流程尚未经过充分测试，正式使用前建议增加版本、项目名称、镜像类型和哈希校验，并验证失败回滚。
-
-## USB 通信
-
-USB 并不是单向通信：
-
-| USB 接口 | 方向 | 用途 |
-|---|---|---|
-| Xbox 360 IN | ESP32 → 电脑 | 按键、摇杆和扳机 |
-| Xbox 360 OUT | 电脑 → ESP32 | 双马达震动 |
-| HID Keyboard IN | ESP32 → 电脑 | Assistant/Capture 快捷键 |
-| HID Mouse IN | ESP32 → 电脑 | 鼠标模式 |
-| HID Feature Report | 双向 | WebHID 状态、配对、映射和设备管理 |
-
-USB 配置使用 Utility HID 接口中的 vendor-defined 顶层集合和 63 字节 Feature Report。Feature Report 通过 EP0 控制传输，不占用新的中断端点，也不改变两个 Xbox 360 接口的报告格式。
-
-协议版本、帧格式、命令和状态码见 [`docs/usb-config-protocol.md`](docs/usb-config-protocol.md)。USB 配置 v1 不包含固件上传；OTA 继续使用 Wi-Fi 页面。
-
-## USB 远程唤醒
-
-电脑休眠时，按下以下任意按键会尝试调用 `tud_remote_wakeup()`：
-
-- Stadia
-- Assistant
-- Capture
-- A
-
-是否能成功唤醒取决于主板 BIOS、Windows 电源管理和 USB 设备唤醒设置，目前不保证在所有电脑上正常工作。
-
-## LED 状态
-
-| 灯效 | 含义 |
-|---|---|
-| 白色呼吸 | 正在启动 |
-| 暗蓝色心跳 | 正在扫描，没有手柄连接 |
-| 蓝黄交替 | 正在扫描，且 Wi-Fi AP 已开启 |
-| 绿色心跳 | 一个手柄处于游戏手柄模式 |
-| 较快绿色心跳 | 两个手柄处于游戏手柄模式 |
-| 橙色心跳 | 至少一个手柄处于鼠标模式 |
-| 暗紫色心跳 | 电脑休眠，USB 已挂起 |
-| 红色呼吸 | 错误 |
-| 紫黄交替 | 正在执行 OTA 更新 |
-| 短暂白色闪烁 | 已发送远程唤醒信号 |
-
-## 软件架构
-
-```text
-Stadia BLE ──▶ ble_central.c ──▶ bridge.c ──▶ usb_xbox.c ──▶ 电脑（Xbox 360）
-                   │
-                   ├──▶ button_actions.c ──▶ hid_extra.c ──▶ 电脑（键盘）
-                   │
-                   └──▶ mouse_mode.c ──▶ hid_mouse.c ──▶ 电脑（125 Hz 鼠标）
-
-电脑震动 ──▶ xbox_dev.c ──▶ ble_central.c ──▶ Stadia BLE
-
-USB 浏览器 ◀── WebHID Feature Report ──▶ usb_config_protocol.c
-                                             │
-                                             ├──▶ config_store.c ──▶ NVS
-                                             ├──▶ 配对与设备管理
-                                             └──▶ Wi-Fi AP 控制
-
-Wi-Fi 浏览器 ◀── HTTP / Wi-Fi AP ──▶ web_server.c ──▶ OTA 应用分区
-```
-
-首次真机验证可直接按 [`docs/hardware-test-checklist.md`](docs/hardware-test-checklist.md) 完成。
+- [USB 配置协议](docs/usb-config-protocol.md)
+- [真机验收清单](docs/hardware-test-checklist.md)
+- [产品与界面原则](PRODUCT.md)
 
 ## 许可证
 

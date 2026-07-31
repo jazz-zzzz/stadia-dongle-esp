@@ -128,15 +128,15 @@ const BUTTON_NAMES = Object.freeze([
 ]);
 
 const STATUS_MESSAGES = Object.freeze({
-  [STATUS.badMagic]: "The receiver rejected the request header.",
-  [STATUS.unsupportedVersion]: "The receiver uses an incompatible USB protocol.",
-  [STATUS.unknownCommand]: "This firmware does not support that command.",
-  [STATUS.invalidPayload]: "The receiver rejected the command data.",
-  [STATUS.internalError]: "The receiver could not complete the operation.",
-  [STATUS.busy]: "The receiver is busy. Try again.",
-  [STATUS.notFound]: "The requested controller was not found.",
-  [STATUS.unsupported]: "This operation is not available over USB.",
-  [STATUS.notReady]: "Bluetooth is still starting. Try again in a moment.",
+  [STATUS.badMagic]: "接收器拒绝了请求头。",
+  [STATUS.unsupportedVersion]: "接收器使用了不兼容的 USB 配置协议。",
+  [STATUS.unknownCommand]: "当前固件不支持这个命令。",
+  [STATUS.invalidPayload]: "接收器拒绝了命令数据。",
+  [STATUS.internalError]: "接收器无法完成此操作。",
+  [STATUS.busy]: "接收器正忙，请稍后重试。",
+  [STATUS.notFound]: "没有找到指定的手柄。",
+  [STATUS.unsupported]: "此操作暂不支持通过 USB 完成。",
+  [STATUS.notReady]: "蓝牙仍在启动，请稍后重试。",
 });
 
 function sleepDefault(milliseconds) {
@@ -203,7 +203,7 @@ function encodeAscii(value) {
 
 function actionCode(name) {
   const code = ACTION_NAMES.indexOf(name);
-  if (code < 0) throw new Error(`Unknown button action: ${name}`);
+  if (code < 0) throw new Error(`未知的按键动作：${name}`);
   return code;
 }
 
@@ -295,7 +295,7 @@ export class WebHidTransport {
       this.lockCompletion = null;
       throw new Error(
         result.error?.message ||
-          "Another Stadia Dongle configuration page is already connected.",
+          "另一个 Stadia 接收器配置页面已连接到设备。",
       );
     }
   }
@@ -310,7 +310,7 @@ export class WebHidTransport {
   }
   async connect({ prompt = true } = {}) {
     if (!WebHidTransport.isSupported(this.hid)) {
-      throw new Error("WebHID is not supported. Use Chrome or Edge.");
+      throw new Error("当前浏览器不支持 WebHID，请使用 Chrome 或 Edge。");
     }
     await this.acquireSessionLock();
     let device;
@@ -330,7 +330,7 @@ export class WebHidTransport {
         });
         device = devices.find((candidate) => this.matches(candidate));
       }
-      if (!device) throw new Error("No Stadia receiver was selected.");
+      if (!device) throw new Error("未选择 Stadia 接收器。");
       if (this.device && this.device !== device && this.device.opened) {
         await this.device.close();
       }
@@ -345,7 +345,7 @@ export class WebHidTransport {
       this.hid.addEventListener?.("disconnect", this.handleDisconnect);
       const ping = await this.command(COMMAND.ping);
       if (ping.length !== 1 || ping[0] !== USB_CONFIG.version) {
-        throw new Error("The receiver returned an invalid protocol handshake.");
+        throw new Error("接收器返回了无效的协议握手。");
       }
       this.deviceInfo = parseDeviceInfo(
         await this.command(COMMAND.getDeviceInfo),
@@ -404,10 +404,10 @@ export class WebHidTransport {
   }
 
   async executeCommand(command, payloadValue) {
-    if (!this.device?.opened) throw new Error("The USB receiver is not connected.");
+    if (!this.device?.opened) throw new Error("USB 接收器未连接。");
     const payload = uint8View(payloadValue);
     if (payload.length > USB_CONFIG.maxPayload) {
-      throw new Error(`USB command payload exceeds ${USB_CONFIG.maxPayload} bytes.`);
+      throw new Error(`USB 命令数据超过 ${USB_CONFIG.maxPayload} 字节。`);
     }
 
     this.sequence = (this.sequence % 255) + 1;
@@ -427,13 +427,13 @@ export class WebHidTransport {
         await this.device.receiveFeatureReport(USB_CONFIG.reportId),
       );
       if (report.length < USB_CONFIG.headerSize) {
-        throw new Error("The receiver returned a truncated USB report.");
+        throw new Error("接收器返回了不完整的 USB 报告。");
       }
       if (
         report[0] !== USB_CONFIG.magic ||
         report[1] !== USB_CONFIG.version
       ) {
-        throw new Error("The receiver returned an invalid USB report.");
+        throw new Error("接收器返回了无效的 USB 报告。");
       }
       if (report[2] !== sequence || report[3] !== command) {
         await this.sleep(this.pollIntervalMs);
@@ -445,7 +445,7 @@ export class WebHidTransport {
       }
       if (report[4] !== STATUS.ok) {
         throw new UsbProtocolError(
-          STATUS_MESSAGES[report[4]] ?? `USB command failed (${report[4]}).`,
+          STATUS_MESSAGES[report[4]] ?? `USB 命令失败（${report[4]}）。`,
           report[4],
           command,
         );
@@ -455,21 +455,21 @@ export class WebHidTransport {
         payloadLength > USB_CONFIG.maxPayload ||
         USB_CONFIG.headerSize + payloadLength > report.length
       ) {
-        throw new Error("The receiver returned an invalid payload length.");
+        throw new Error("接收器返回了无效的数据长度。");
       }
       return report.slice(
         USB_CONFIG.headerSize,
         USB_CONFIG.headerSize + payloadLength,
       );
     }
-    throw new Error("Timed out waiting for the receiver.");
+    throw new Error("等待接收器响应超时。");
   }
 }
 
 export function parseDeviceInfo(payloadValue) {
   const payload = uint8View(payloadValue);
   if (payload.length !== USB_CONFIG.maxPayload) {
-    throw new Error("Invalid device information payload.");
+    throw new Error("设备信息数据无效。");
   }
   return {
     protocol_version: payload[0],
@@ -483,7 +483,7 @@ export function parseDeviceInfo(payloadValue) {
 export function parseStatus(payloadValue, deviceInfo = {}) {
   const payload = uint8View(payloadValue);
   if (payload.length !== USB_CONFIG.maxPayload) {
-    throw new Error("Invalid status payload.");
+    throw new Error("状态数据无效。");
   }
   const flags = readU16(payload, 5);
   const battery = payload[9];
@@ -515,7 +515,7 @@ export function parseStatus(payloadValue, deviceInfo = {}) {
 
 export function parseConfig(payloadValue) {
   const payload = uint8View(payloadValue);
-  if (payload.length !== 9) throw new Error("Invalid configuration payload.");
+  if (payload.length !== 9) throw new Error("配置数据无效。");
   return {
     assistant_short: ACTION_NAMES[payload[0]] ?? "none",
     assistant_long: ACTION_NAMES[payload[1]] ?? "none",
@@ -545,7 +545,7 @@ export function encodeConfig(config) {
 export function parseController(payloadValue) {
   const payload = uint8View(payloadValue);
   if (payload.length !== USB_CONFIG.maxPayload) {
-    throw new Error("Invalid controller payload.");
+    throw new Error("手柄数据无效。");
   }
   const flags = payload[4];
   return {
@@ -565,7 +565,7 @@ export function parseController(payloadValue) {
 
 export function parseInput(payloadValue) {
   const payload = uint8View(payloadValue);
-  if (payload.length !== 49) throw new Error("Invalid input payload.");
+  if (payload.length !== 49) throw new Error("输入数据无效。");
   const pressedMask = readU32(payload, 2);
   const pressed = BUTTON_NAMES.filter(
     (_name, index) => pressedMask & (1 << index),
@@ -667,7 +667,7 @@ export class StadiaUsbApi {
     if (method === "POST" && path === "/api/controllers/forget") {
       const address = new URLSearchParams(options.body).get("address") ?? "";
       const encoded = encodeAscii(address);
-      if (encoded.length !== 17) throw new Error("Invalid controller address.");
+      if (encoded.length !== 17) throw new Error("手柄地址无效。");
       await this.transport.command(COMMAND.forgetController, encoded);
       return { ok: true };
     }
@@ -689,12 +689,12 @@ export class StadiaUsbApi {
     }
     if (method === "POST" && path === "/api/update") {
       throw new UsbProtocolError(
-        "Firmware upload over USB is not available yet. Use Wi-Fi OTA.",
+        "USB 暂不支持上传固件，请使用 Wi-Fi OTA。",
         STATUS.unsupported,
         0,
       );
     }
-    throw new Error(`Unsupported USB API request: ${method} ${path}`);
+    throw new Error(`不支持的 USB API 请求：${method} ${path}`);
   }
 
   async getControllers() {
@@ -702,7 +702,7 @@ export class StadiaUsbApi {
       COMMAND.getControllerCount,
     );
     if (countPayload.length !== 1) {
-      throw new Error("Invalid controller count payload.");
+      throw new Error("手柄数量数据无效。");
     }
     const controllers = [];
     for (let index = 0; index < countPayload[0]; index += 1) {

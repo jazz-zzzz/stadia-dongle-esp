@@ -71,7 +71,7 @@ ESP32-S3 可以使用手柄要求的 BLE GATT 写入方式控制两个震动马�
 http://192.168.4.1     ── HTTP / 接收器热点 ──▶ ESP32-S3
 ```
 
-首选入口是 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。点击 **Connect USB** 后，浏览器直接通过原生 USB 与接收器通信，Windows 继续使用原来的 Wi-Fi。
+首选入口是 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。点击 **连接 USB** 后，浏览器直接通过原生 USB 与接收器通信，Windows 继续使用原来的 Wi-Fi。
 
 `main/CMakeLists.txt` 也会将配置页面和传输脚本编译进固件。连接接收器热点后访问 `http://192.168.4.1`，同一界面会自动改用本地 HTTP API，并保留 OTA 上传功能。
 
@@ -133,7 +133,7 @@ esptool.py --chip esp32s3 merge_bin \
 
 1. 烧录后，用开发板的**原生 USB 接口**连接电脑。
 2. 使用桌面版 Chrome 或 Edge 打开 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。
-3. 点击 **Connect USB**，选择 Stadia 接收器。
+3. 点击 **连接 USB**，选择 Stadia 接收器。
 4. 点击 **Start Pairing**。
 5. 按住手柄的 **Stadia + Y**，直到状态灯闪烁橙色。
 6. 配对成功后，绑定信息会保存到 Flash，之后开机会自动重连。

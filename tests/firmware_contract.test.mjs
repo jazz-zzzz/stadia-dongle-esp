@@ -130,6 +130,21 @@ test("localhost remains available for an offline USB configuration page", async 
   assert.doesNotMatch(index, /location\.hostname === "192\.168\.4\.1"/);
 });
 
+test("configuration page is Chinese and exposes firmware mapping defaults", async () => {
+  const index = await source("../main/index.html");
+  assert.match(index, /<html lang="zh-CN">/);
+  assert.match(index, /<h2>额外按键<\/h2>/);
+  assert.match(index, /assistant_short:\s*"f14"/);
+  assert.match(index, /assistant_long:\s*"start_webui"/);
+  assert.match(index, /capture_short:\s*"printscreen"/);
+  assert.match(index, /capture_long:\s*"none"/);
+  assert.match(index, /long_press_ms:\s*1000/);
+  assert.match(index, /webui_timeout_seconds:\s*120/);
+  assert.match(index, /id="restoreDefaults"/);
+  assert.match(index, /applyConfig\(defaultMapping\)/);
+  assert.match(index, /（固件默认）/);
+});
+
 test("controller polling preserves interactive nodes and gates capabilities", async () => {
   const index = await source("../main/index.html");
   assert.match(index, /function createControllerElement\(key\)/);

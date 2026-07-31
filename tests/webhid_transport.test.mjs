@@ -309,7 +309,7 @@ test("Web Locks allow only one active configuration page", async () => {
   assert.equal(locks.held, true);
   await assert.rejects(
     second.connect(),
-    /Another Stadia Dongle configuration page is already connected/,
+    /另一个 Stadia 接收器配置页面已连接到设备/,
   );
   await first.disconnect();
   assert.equal(locks.held, false);
@@ -410,7 +410,7 @@ test("a failed handshake closes the device and removes the disconnect listener",
 
   await assert.rejects(
     transport.connect(),
-    /invalid protocol handshake/,
+    /无效的协议握手/,
   );
   assert.equal(device.opened, false);
   assert.equal(transport.connected, false);

@@ -101,6 +101,7 @@
         <button id="wifiToggle" data-device data-capability="wifiControl" type="button">停止 Wi-Fi 热点</button>
         <button id="rebootButton" data-device data-capability="reboot" type="button">重启接收器</button>
       </div>
+      <p class="muted">Wi-Fi 热点仅用于 OTA 和 USB 故障恢复，默认关闭。手动开启后，无客户端时会按下方设置的时间自动关闭。</p>
     </section>
 
     <section class="card">
@@ -189,7 +190,7 @@
 import { CAPABILITY, StadiaUsbApi, WebHidTransport } from "./webhid_transport.js";
 
 const $ = (id) => document.getElementById(id);
-const actions = ["none","f13","f14","f15","f16","f17","f18","f19","f20","f21","f22","f23","f24","printscreen","escape","tab","space","enter","backspace","insert","delete","home","end","page_up","page_down","arrow_up","arrow_down","arrow_left","arrow_right","volume_up","volume_down","mute","play_pause","next_track","prev_track","start_webui","remote_wake_only"];
+const actions = ["none","f13","f14","f15","f16","f17","f18","f19","f20","f21","f22","f23","f24","printscreen","escape","tab","space","enter","backspace","insert","delete","home","end","page_up","page_down","arrow_up","arrow_down","arrow_left","arrow_right","volume_up","volume_down","mute","play_pause","next_track","prev_track","remote_wake_only"];
 const actionLabels = Object.freeze({
   none: "无操作",
   printscreen: "截图（Print Screen）",
@@ -214,14 +215,13 @@ const actionLabels = Object.freeze({
   play_pause: "播放或暂停",
   next_track: "下一曲",
   prev_track: "上一曲",
-  start_webui: "启动配置热点",
   remote_wake_only: "仅唤醒电脑",
 });
 const defaultMapping = Object.freeze({
   assistant_short: "f14",
-  assistant_long: "start_webui",
+  assistant_long: "none",
   capture_short: "printscreen",
-  capture_long: "none",
+  capture_long: "f15",
   long_press_ms: 1000,
   webui_timeout_seconds: 120,
   disable_ap_on_suspend: true,

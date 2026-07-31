@@ -61,7 +61,7 @@ static void recovery_check(void)
         controller_manager_forget_all();
         web_server_start(true);
     } else if (boots >= 3) {
-        // web_server_start(true); // Now started unconditionally below
+        web_server_start(true);
     }
     xTaskCreate(recovery_clear_task, "recovery_clear", 2048, NULL, 1, NULL);
 }
@@ -117,9 +117,6 @@ void app_main(void)
     // controller_manager_init() is called from on_sync() after NimBLE sync.
     ble_central_init();
     recovery_check();
-
-    // Start setup AP at boot; it switches to the configured timeout after BLE connects.
-    web_server_start(true);
 
     // Spawn tasks
     xTaskCreatePinnedToCore(usb_xbox_task,   "usb_xbox",   4096, NULL, 4, NULL, 1);

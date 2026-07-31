@@ -134,15 +134,17 @@ esptool.py --chip esp32s3 merge_bin \
 1. 烧录后，用开发板的**原生 USB 接口**连接电脑。
 2. 使用桌面版 Chrome 或 Edge 打开 [USB 配置页](https://jazz-zzzz.github.io/stadia-dongle-esp/config.html)。
 3. 点击 **连接 USB**，选择 Stadia 接收器。
-4. 点击 **Start Pairing**。
+4. 点击 **开始配对**。
 5. 按住手柄的 **Stadia + Y**，直到状态灯闪烁橙色。
 6. 配对成功后，绑定信息会保存到 Flash，之后开机会自动重连。
 
-USB 配置不要求 Windows 切换网络。若 USB 页面不可用，仍可使用恢复入口：
+USB 配置不要求 Windows 切换网络。Wi-Fi 热点默认关闭，仅在 OTA 或恢复时按需开启。正常情况下可在 USB 配置页点击 **启动 Wi-Fi 热点**；若 USB 页面不可用：
 
-1. 连接开放热点 **`StadiaDongle-XXXX`**。
-2. 打开 `http://192.168.4.1`。
-3. 在相同界面中完成配对或 OTA。
+1. 已连接手柄时，同时按住 **Stadia + Options + Menu** 约 5 秒；或者在 30 秒内连续重启接收器 3 次，进入恢复模式。
+2. 连接临时开放热点 **`StadiaDongle-XXXX`**。
+3. 打开 `http://192.168.4.1`，在相同界面中完成恢复或 OTA。
+
+连续重启 5 次还会清除全部手柄绑定，仅应在无法恢复配对时使用。
 
 固件也会自动扫描可用的 Stadia 手柄，因此通常不必手动点击 Start Pairing。
 
@@ -202,6 +204,8 @@ USB 配置不要求 Windows 切换网络。若 USB 页面不可用，仍可使�
 
 Wi-Fi AP 开启时，固件会暂停 BLE 扫描以减少 2.4 GHz 共存干扰；已经建立的 BLE 连接和输入通知不会中断。
 
+Wi-Fi AP 不会常驻。它仅在 USB 页面、恢复手势或快速重启恢复流程明确请求后启动；没有 Wi-Fi 客户端连接时，默认 120 秒后自动关闭。
+
 ## 额外按键
 
 Xbox 360 的 XInput 报告没有 Assistant 和 Capture 对应的按键位。固件因此使用独立的 **Boot Keyboard + Consumer Control HID** 接口发送这两个按键。
@@ -210,10 +214,10 @@ Xbox 360 的 XInput 报告没有 Assistant 和 Capture 对应的按键位。固�
 
 | Stadia 按键 | 短按 | 长按，默认 1 秒 |
 |---|---|---|
-| Assistant | F14 | 启动 Web GUI |
-| Capture | PrintScreen | 无 |
+| Assistant | F14 | 无 |
+| Capture | PrintScreen | F15 |
 
-Web GUI 可重新设置短按和长按动作。目前提供 38 种动作：
+F14 和 F15 默认不触发 Windows 系统功能，适合交给 Steam、AutoHotkey 或其他工具自行映射。Web GUI 可重新设置短按和长按动作，目前提供 37 种动作：
 
 - F13–F24
 - PrintScreen、Escape、Space、Enter、Tab、Backspace
@@ -222,7 +226,6 @@ Web GUI 可重新设置短按和长按动作。目前提供 38 种动作：
 - 音量加减、静音
 - 媒体播放/暂停、上一曲、下一曲
 - 仅远程唤醒
-- 启动 Web GUI
 
 复杂的按键组合和按游戏映射可以继续交给 Steam Input、PowerToys 或其他本地软件处理。
 
@@ -251,13 +254,7 @@ WebHID 需要桌面版 Chrome 或 Edge。浏览器首次连接时会显示设备
 - OTA 固件上传
 - 重启和关闭 Web GUI
 
-以下情况会启动 Wi-Fi 恢复入口：
-
-- 刚完成首次烧录
-- 没有已绑定的手柄
-- 长按 Assistant，默认动作
-
-有手柄连接后，AP 默认在 120 秒后自动关闭；可在 GUI 中修改超时时间。
+Wi-Fi 热点默认关闭，不会因为首次烧录、没有手柄绑定、手柄断开或 Assistant 长按而自动启动。可从 USB 页面手动启动；USB 不可用时，可用 **Stadia + Options + Menu** 长按或快速重启恢复流程临时启动。没有客户端连接时，AP 默认在 120 秒后自动关闭，可在 GUI 中修改超时时间。
 
 ### 配置是否需要重新烧录
 

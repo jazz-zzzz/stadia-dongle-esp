@@ -10,7 +10,7 @@
 
 #define CFG_NS "dongle_cfg"
 #define CFG_KEY "config"
-#define CFG_SCHEMA 3
+#define CFG_SCHEMA 4
 
 static const char *TAG = "CFG";
 
@@ -22,11 +22,11 @@ void config_store_defaults(dongle_config_t *cfg)
     memset(cfg, 0, sizeof(*cfg));
     cfg->schema_version = CFG_SCHEMA;
     cfg->assistant_short_action = DONGLE_ACTION_KEY_F14;
-    cfg->assistant_long_action = DONGLE_ACTION_START_WEBUI;
+    cfg->assistant_long_action = DONGLE_ACTION_NONE;
     cfg->capture_short_action = DONGLE_ACTION_KEY_PRINTSCREEN;
-    cfg->capture_long_action = DONGLE_ACTION_NONE;
+    cfg->capture_long_action = DONGLE_ACTION_KEY_F15;
     cfg->long_press_ms = 1000;
-    cfg->webui_auto_start_if_no_bond = true;
+    cfg->webui_auto_start_if_no_bond = false;
     cfg->webui_timeout_after_ble_connected_ms = 120000;
     cfg->disable_ap_on_usb_suspend = true;
 }
@@ -40,15 +40,28 @@ void config_store_init(void)
     if (nvs_open(CFG_NS, NVS_READWRITE, &nvs) != ESP_OK) return;
     size_t len = sizeof(s_cfg);
     esp_err_t err = nvs_get_blob(nvs, CFG_KEY, &s_cfg, &len);
-    if (err == ESP_OK && s_cfg.schema_version == 1) {
+    if (err == ESP_OK && s_cfg.schema_version >= 1 && s_cfg.schema_version < CFG_SCHEMA) {
+        uint32_t old_schema = s_cfg.schema_version;
+        if (old_schema == 1) {
+            s_cfg.webui_timeout_after_ble_connected_ms = 120000;
+            s_cfg.disable_ap_on_usb_suspend = true;
+        } else if (old_schema == 2) {
+            s_cfg.disable_ap_on_usb_suspend = true;
+        }
+
+        bool legacy_defaults =
+            s_cfg.assistant_short_action == DONGLE_ACTION_KEY_F14 &&
+            s_cfg.assistant_long_action == DONGLE_ACTION_START_WEBUI &&
+            s_cfg.capture_short_action == DONGLE_ACTION_KEY_PRINTSCREEN &&
+            s_cfg.capture_long_action == DONGLE_ACTION_NONE;
+        if (legacy_defaults) {
+            s_cfg.capture_long_action = DONGLE_ACTION_KEY_F15;
+        }
+        if (s_cfg.assistant_long_action == DONGLE_ACTION_START_WEBUI) {
+            s_cfg.assistant_long_action = DONGLE_ACTION_NONE;
+        }
+        s_cfg.webui_auto_start_if_no_bond = false;
         s_cfg.schema_version = CFG_SCHEMA;
-        s_cfg.webui_timeout_after_ble_connected_ms = 120000;
-        s_cfg.disable_ap_on_usb_suspend = true;
-        nvs_set_blob(nvs, CFG_KEY, &s_cfg, sizeof(s_cfg));
-        nvs_commit(nvs);
-    } else if (err == ESP_OK && s_cfg.schema_version == 2) {
-        s_cfg.schema_version = CFG_SCHEMA;
-        s_cfg.disable_ap_on_usb_suspend = true;
         nvs_set_blob(nvs, CFG_KEY, &s_cfg, sizeof(s_cfg));
         nvs_commit(nvs);
     } else if (err != ESP_OK || s_cfg.schema_version != CFG_SCHEMA) {

@@ -571,23 +571,10 @@ static void register_uri(const char *uri, httpd_method_t method, esp_err_t (*han
     httpd_register_uri_handler(s_httpd, &h);
 }
 
-static bool any_controller_connected(void)
-{
-    dongle_status_t st;
-    dongle_state_get_status(&st);
-    return st.connected_count > 0 || st.ble_connected;
-}
-
 static void update_webui_deadline(void)
 {
     if (!s_httpd) {
         dongle_state_set_webui(false, 0);
-        return;
-    }
-
-    if (!any_controller_connected()) {
-        s_deadline_set = false;
-        dongle_state_set_webui(true, 0);
         return;
     }
 
@@ -685,7 +672,15 @@ void web_server_init(void)
 
 void web_server_start(bool explicit_request)
 {
-    (void)explicit_request;
+    if (!explicit_request) {
+        dongle_config_t config;
+        config_store_get(&config);
+        if (!config.webui_auto_start_if_no_bond ||
+            controller_manager_bond_count() != 0) {
+            return;
+        }
+    }
+
     if (s_httpd) {
         update_webui_deadline();
         return;

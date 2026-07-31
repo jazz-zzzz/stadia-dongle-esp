@@ -135,14 +135,38 @@ test("configuration page is Chinese and exposes firmware mapping defaults", asyn
   assert.match(index, /<html lang="zh-CN">/);
   assert.match(index, /<h2>额外按键<\/h2>/);
   assert.match(index, /assistant_short:\s*"f14"/);
-  assert.match(index, /assistant_long:\s*"start_webui"/);
+  assert.match(index, /assistant_long:\s*"none"/);
   assert.match(index, /capture_short:\s*"printscreen"/);
-  assert.match(index, /capture_long:\s*"none"/);
+  assert.match(index, /capture_long:\s*"f15"/);
   assert.match(index, /long_press_ms:\s*1000/);
   assert.match(index, /webui_timeout_seconds:\s*120/);
   assert.match(index, /id="restoreDefaults"/);
   assert.match(index, /applyConfig\(defaultMapping\)/);
   assert.match(index, /（固件默认）/);
+  assert.doesNotMatch(index, /"start_webui"/);
+});
+
+test("Wi-Fi AP is opt-in, temporary, and still recoverable", async () => {
+  const store = await source("../main/config_store.c");
+  const appMain = await source("../main/main.c");
+  const webServer = await source("../main/web_server.c");
+  assert.match(store, /CFG_SCHEMA\s+4/);
+  assert.match(store, /webui_auto_start_if_no_bond\s*=\s*false/);
+  assert.match(
+    store,
+    /assistant_long_action\s*==\s*DONGLE_ACTION_START_WEBUI[\s\S]*?assistant_long_action\s*=\s*DONGLE_ACTION_NONE/,
+  );
+  assert.equal(
+    [...appMain.matchAll(/web_server_start\(true\)/g)].length,
+    2,
+    "only the three-boot and five-boot recovery paths start Wi-Fi in main.c",
+  );
+  assert.match(appMain, /boots\s*>=\s*3[\s\S]*?web_server_start\(true\)/);
+  assert.match(
+    webServer,
+    /if\s*\(!explicit_request\)[\s\S]*?webui_auto_start_if_no_bond[\s\S]*?controller_manager_bond_count\(\)\s*!=\s*0/,
+  );
+  assert.doesNotMatch(webServer, /any_controller_connected/);
 });
 
 test("controller polling preserves interactive nodes and gates capabilities", async () => {

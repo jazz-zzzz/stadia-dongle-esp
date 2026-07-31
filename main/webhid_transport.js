@@ -40,6 +40,18 @@ export const STATUS = Object.freeze({
   busy: 7,
   notFound: 8,
   unsupported: 9,
+  notReady: 10,
+});
+
+export const CAPABILITY = Object.freeze({
+  keymap: 1 << 0,
+  controllers: 1 << 1,
+  liveInput: 1 << 2,
+  pairing: 1 << 3,
+  forget: 1 << 4,
+  wifiControl: 1 << 5,
+  reboot: 1 << 6,
+  bleReadiness: 1 << 7,
 });
 
 export const ACTION_NAMES = Object.freeze([
@@ -124,6 +136,7 @@ const STATUS_MESSAGES = Object.freeze({
   [STATUS.busy]: "The receiver is busy. Try again.",
   [STATUS.notFound]: "The requested controller was not found.",
   [STATUS.unsupported]: "This operation is not available over USB.",
+  [STATUS.notReady]: "Bluetooth is still starting. Try again in a moment.",
 });
 
 function sleepDefault(milliseconds) {
@@ -206,16 +219,23 @@ export class UsbProtocolError extends Error {
 export class WebHidTransport {
   constructor({
     hid = globalThis.navigator?.hid,
+    locks =
+      typeof globalThis.window === "undefined"
+        ? undefined
+        : globalThis.navigator?.locks,
     sleep = sleepDefault,
     responseTimeoutMs = 2500,
     pollIntervalMs = 25,
   } = {}) {
     this.hid = hid;
+    this.locks = locks;
     this.sleep = sleep;
     this.responseTimeoutMs = responseTimeoutMs;
     this.pollIntervalMs = pollIntervalMs;
     this.device = null;
     this.deviceInfo = null;
+    this.lockRelease = null;
+    this.lockCompletion = null;
     this.sequence = 0;
     this.commandTail = Promise.resolve();
     this.disconnectListeners = new Set();
@@ -224,6 +244,7 @@ export class WebHidTransport {
       this.device = null;
       this.deviceInfo = null;
       for (const listener of this.disconnectListeners) listener();
+      void this.releaseSessionLock();
     };
   }
 
@@ -240,30 +261,85 @@ export class WebHidTransport {
     return () => this.disconnectListeners.delete(listener);
   }
 
+  async acquireSessionLock() {
+    if (this.lockRelease || !this.locks?.request) return;
+
+    let resolveAcquired;
+    const acquired = new Promise((resolve) => {
+      resolveAcquired = resolve;
+    });
+    let releaseHold;
+    const hold = new Promise((resolve) => {
+      releaseHold = resolve;
+    });
+
+    const request = this.locks.request(
+      "stadia-dongle-webhid-session",
+      { mode: "exclusive", ifAvailable: true },
+      async (lock) => {
+        if (!lock) {
+          resolveAcquired({ acquired: false });
+          return;
+        }
+        this.lockRelease = releaseHold;
+        resolveAcquired({ acquired: true });
+        await hold;
+      },
+    );
+    this.lockCompletion = Promise.resolve(request).catch((error) => {
+      resolveAcquired({ acquired: false, error });
+    });
+
+    const result = await acquired;
+    if (!result.acquired) {
+      this.lockCompletion = null;
+      throw new Error(
+        result.error?.message ||
+          "Another Stadia Dongle configuration page is already connected.",
+      );
+    }
+  }
+
+  async releaseSessionLock() {
+    const release = this.lockRelease;
+    const completion = this.lockCompletion;
+    this.lockRelease = null;
+    this.lockCompletion = null;
+    release?.();
+    await completion?.catch(() => {});
+  }
   async connect({ prompt = true } = {}) {
     if (!WebHidTransport.isSupported(this.hid)) {
       throw new Error("WebHID is not supported. Use Chrome or Edge.");
     }
-    let devices = await this.hid.getDevices();
-    let device = devices.find((candidate) => this.matches(candidate));
-    if (!device && prompt) {
-      devices = await this.hid.requestDevice({
-        filters: [
-          {
-            vendorId: USB_CONFIG.vendorId,
-            productId: USB_CONFIG.productId,
-            usagePage: USB_CONFIG.usagePage,
-            usage: USB_CONFIG.usage,
-          },
-        ],
-      });
+    await this.acquireSessionLock();
+    let device;
+    try {
+      let devices = await this.hid.getDevices();
       device = devices.find((candidate) => this.matches(candidate));
+      if (!device && prompt) {
+        devices = await this.hid.requestDevice({
+          filters: [
+            {
+              vendorId: USB_CONFIG.vendorId,
+              productId: USB_CONFIG.productId,
+              usagePage: USB_CONFIG.usagePage,
+              usage: USB_CONFIG.usage,
+            },
+          ],
+        });
+        device = devices.find((candidate) => this.matches(candidate));
+      }
+      if (!device) throw new Error("No Stadia receiver was selected.");
+      if (this.device && this.device !== device && this.device.opened) {
+        await this.device.close();
+      }
+      this.device = device;
+    } catch (error) {
+      await this.releaseSessionLock();
+      throw error;
     }
-    if (!device) throw new Error("No Stadia receiver was selected.");
-    if (this.device && this.device !== device && this.device.opened) {
-      await this.device.close();
-    }
-    this.device = device;
+
     try {
       if (!this.device.opened) await this.device.open();
       this.hid.addEventListener?.("disconnect", this.handleDisconnect);
@@ -286,6 +362,7 @@ export class WebHidTransport {
           // Preserve the handshake error; a close failure is secondary.
         }
       }
+      await this.releaseSessionLock();
       throw error;
     }
   }
@@ -295,7 +372,11 @@ export class WebHidTransport {
     this.device = null;
     this.deviceInfo = null;
     this.hid?.removeEventListener?.("disconnect", this.handleDisconnect);
-    if (device?.opened) await device.close();
+    try {
+      if (device?.opened) await device.close();
+    } finally {
+      await this.releaseSessionLock();
+    }
   }
 
   matches(device) {
@@ -414,6 +495,9 @@ export function parseStatus(payloadValue, deviceInfo = {}) {
     webui_active: Boolean(flags & (1 << 0)),
     webui_auto_off_seconds: readU16(payload, 10),
     webui_clients: 0,
+    ble_ready:
+      !(deviceInfo.capabilities & CAPABILITY.bleReadiness) ||
+      Boolean(flags & (1 << 7)),
     ble_connected: Boolean(flags & (1 << 1)),
     connected_count: payload[7],
     controller_slots: deviceInfo.controller_slots ?? 2,

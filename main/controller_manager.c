@@ -46,8 +46,14 @@ void controller_manager_init(void)
     dongle_state_set_stored_bonds(controller_manager_bond_count());
 }
 
+bool controller_manager_is_ready(void)
+{
+    return s_lock != NULL;
+}
+
 int controller_manager_bond_count(void)
 {
+    if (!controller_manager_is_ready()) return 0;
     int count = 0;
     ble_store_util_count(BLE_STORE_OBJ_TYPE_OUR_SEC, &count);
     dongle_state_set_stored_bonds(count);
@@ -56,6 +62,7 @@ int controller_manager_bond_count(void)
 
 int controller_manager_list(controller_info_t *out, int max_count)
 {
+    if (!controller_manager_is_ready()) return 0;
     if (!out || max_count <= 0) return 0;
     ble_addr_t peers[CONTROLLER_MANAGER_MAX_CONTROLLERS];
     int count = 0;
@@ -173,6 +180,7 @@ void controller_manager_note_disconnected(void)
 
 int controller_manager_forget_address(const char *address)
 {
+    if (!controller_manager_is_ready()) return -1;
     ble_addr_t addr;
     if (!str_to_addr(address, &addr)) return -1;
     int rc = ble_gap_unpair(&addr);
@@ -199,6 +207,7 @@ int controller_manager_forget_current(void)
 
 int controller_manager_forget_all(void)
 {
+    if (!controller_manager_is_ready()) return -1;
     int rc = ble_store_clear();
     dongle_state_set_stored_bonds(controller_manager_bond_count());
     return rc;

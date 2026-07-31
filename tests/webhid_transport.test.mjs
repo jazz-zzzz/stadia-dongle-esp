@@ -51,7 +51,7 @@ function deviceInfoPayload() {
   const payload = new Uint8Array(USB_CONFIG.maxPayload);
   payload[0] = USB_CONFIG.version;
   payload[1] = 2;
-  u32(payload, 2, 0x7f);
+  u32(payload, 2, 0xff);
   ascii(payload, 6, 24, "v1.05-webhid");
   ascii(payload, 30, 25, "Jul 31 2026");
   return payload;
@@ -61,7 +61,7 @@ function statusPayload() {
   const payload = new Uint8Array(USB_CONFIG.maxPayload);
   u32(payload, 0, 123456);
   payload[4] = 6;
-  u16(payload, 5, 0b00101111);
+  u16(payload, 5, 0b10101111);
   payload[7] = 1;
   payload[8] = 2;
   payload[9] = 84;
@@ -188,6 +188,24 @@ class MockHid {
   }
 }
 
+class MockLocks {
+  constructor() {
+    this.held = false;
+    this.requests = [];
+  }
+
+  request(name, options, callback) {
+    this.requests.push({ name, options });
+    if (options.ifAvailable && this.held) {
+      return Promise.resolve(callback(null));
+    }
+    this.held = true;
+    return Promise.resolve(callback({ name })).finally(() => {
+      this.held = false;
+    });
+  }
+}
+
 function protocolHandler(command, payload) {
   if (command === COMMAND.ping) {
     return { payload: Uint8Array.of(USB_CONFIG.version) };
@@ -218,7 +236,7 @@ test("binary payload parsers match the firmware layout", () => {
   assert.deepEqual(info, {
     protocol_version: 1,
     controller_slots: 2,
-    capabilities: 0x7f,
+    capabilities: 0xff,
     firmware_version: "v1.05-webhid",
     build_date: "Jul 31 2026",
   });
@@ -230,6 +248,11 @@ test("binary payload parsers match the firmware layout", () => {
   assert.equal(status.battery_percent, 84);
   assert.equal(status.webui_auto_off_seconds, 120);
   assert.equal(status.ble_connected, true);
+  assert.equal(status.ble_ready, true);
+  const legacyPayload = statusPayload();
+  legacyPayload[5] &= ~(1 << 7);
+  assert.equal(parseStatus(legacyPayload, { capabilities: 0x7f }).ble_ready, true);
+
 
   const config = parseConfig(configPayload());
   assert.equal(config.assistant_short, "f14");
@@ -267,6 +290,39 @@ test("WebHID handshake uses the vendor collection filter and pending polling", a
   assert.equal(device.opened, true);
   assert.equal(device.requests[0][0], USB_CONFIG.magic);
   assert.equal(device.requests[0][3], COMMAND.ping);
+});
+
+test("Web Locks allow only one active configuration page", async () => {
+  const locks = new MockLocks();
+  const first = new WebHidTransport({
+    hid: new MockHid(new MockDevice(protocolHandler)),
+    locks,
+    sleep: async () => {},
+  });
+  const second = new WebHidTransport({
+    hid: new MockHid(new MockDevice(protocolHandler)),
+    locks,
+    sleep: async () => {},
+  });
+
+  await first.connect();
+  assert.equal(locks.held, true);
+  await assert.rejects(
+    second.connect(),
+    /Another Stadia Dongle configuration page is already connected/,
+  );
+  await first.disconnect();
+  assert.equal(locks.held, false);
+
+  await second.connect();
+  assert.equal(locks.held, true);
+  await second.disconnect();
+  assert.equal(locks.held, false);
+  assert.equal(
+    locks.requests[0].name,
+    "stadia-dongle-webhid-session",
+  );
+  assert.equal(locks.requests[0].options.ifAvailable, true);
 });
 
 test("StadiaUsbApi maps the existing HTTP-shaped API onto USB commands", async () => {
@@ -345,8 +401,10 @@ test("a failed handshake closes the device and removes the disconnect listener",
     return { payload: new Uint8Array() };
   });
   const hid = new MockHid(device);
+  const locks = new MockLocks();
   const transport = new WebHidTransport({
     hid,
+    locks,
     sleep: async () => {},
   });
 
@@ -357,6 +415,7 @@ test("a failed handshake closes the device and removes the disconnect listener",
   assert.equal(device.opened, false);
   assert.equal(transport.connected, false);
   assert.equal(hid.listeners.has("disconnect"), false);
+  assert.equal(locks.held, false);
 });
 
 test("controller enumeration tolerates a disconnect between count and detail", async () => {

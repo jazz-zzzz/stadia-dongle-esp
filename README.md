@@ -235,7 +235,7 @@ Web GUI 可重新设置短按和长按动作。目前提供 38 种动作：
 | GitHub Pages / localhost | WebHID + 原生 USB | 保持原连接 | 暂不支持 |
 | `http://192.168.4.1` | 本地 HTTP + 接收器热点 | 需要切换到热点 | 支持 |
 
-WebHID 需要桌面版 Chrome 或 Edge。浏览器首次连接时会显示设备选择器；授权后页面可静默重新连接。打开多个配置页会争用同一组 Feature Report，因此同一时刻只保留一个配置页。
+WebHID 需要桌面版 Chrome 或 Edge。浏览器首次连接时会显示设备选择器；授权后页面可静默重新连接。同一来源的多个页面会通过 Web Locks 自动互斥；不同来源（例如 GitHub Pages 与 localhost）无法共享浏览器锁，因此仍不要同时连接同一个接收器。
 
 当前界面提供：
 

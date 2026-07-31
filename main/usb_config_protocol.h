@@ -40,6 +40,7 @@ typedef enum {
     USB_CONFIG_STATUS_BUSY = 7,
     USB_CONFIG_STATUS_NOT_FOUND = 8,
     USB_CONFIG_STATUS_UNSUPPORTED = 9,
+    USB_CONFIG_STATUS_NOT_READY = 10,
 } usb_config_status_t;
 
 enum {
@@ -50,6 +51,7 @@ enum {
     USB_CONFIG_CAP_FORGET = 1u << 4,
     USB_CONFIG_CAP_WIFI_CONTROL = 1u << 5,
     USB_CONFIG_CAP_REBOOT = 1u << 6,
+    USB_CONFIG_CAP_BLE_READINESS = 1u << 7,
 };
 
 void usb_config_protocol_init(void);

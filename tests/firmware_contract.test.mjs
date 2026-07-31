@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { ACTION_NAMES, COMMAND, USB_CONFIG } from "../main/webhid_transport.js";
+import { ACTION_NAMES, CAPABILITY, COMMAND, STATUS, USB_CONFIG } from "../main/webhid_transport.js";
 
 async function source(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
@@ -31,6 +31,34 @@ test("JavaScript command values match the firmware protocol header", async () =>
     const match = header.match(new RegExp(`${name}\\s*=\\s*(0x[0-9a-f]+|\\d+)`, "i"));
     assert.ok(match, `${name} is declared`);
     assert.equal(Number(match[1]), value, `${name} matches JavaScript`);
+  }
+  const notReady = header.match(/USB_CONFIG_STATUS_NOT_READY\s*=\s*(\d+)/);
+  assert.ok(notReady, "USB_CONFIG_STATUS_NOT_READY is declared");
+  assert.equal(
+    Number(notReady[1]),
+    STATUS.notReady,
+    "NOT_READY matches JavaScript",
+  );
+  const capabilities = {
+    USB_CONFIG_CAP_KEYMAP: CAPABILITY.keymap,
+    USB_CONFIG_CAP_CONTROLLERS: CAPABILITY.controllers,
+    USB_CONFIG_CAP_LIVE_INPUT: CAPABILITY.liveInput,
+    USB_CONFIG_CAP_PAIRING: CAPABILITY.pairing,
+    USB_CONFIG_CAP_FORGET: CAPABILITY.forget,
+    USB_CONFIG_CAP_WIFI_CONTROL: CAPABILITY.wifiControl,
+    USB_CONFIG_CAP_REBOOT: CAPABILITY.reboot,
+    USB_CONFIG_CAP_BLE_READINESS: CAPABILITY.bleReadiness,
+  };
+  for (const [name, value] of Object.entries(capabilities)) {
+    const match = header.match(
+      new RegExp(`${name}\\s*=\\s*1u\\s*<<\\s*(\\d+)`),
+    );
+    assert.ok(match, `${name} is declared`);
+    assert.equal(
+      1 << Number(match[1]),
+      value,
+      `${name} matches JavaScript`,
+    );
   }
 });
 
@@ -93,9 +121,30 @@ test("utility HID descriptor advertises one 63-byte vendor feature report", asyn
 
 test("localhost remains available for an offline USB configuration page", async () => {
   const index = await source("../main/index.html");
-  assert.match(
-    index,
-    /location\.hostname === "192\.168\.4\.1"/,
-  );
-  assert.doesNotMatch(index, /isDevicePage[\s\S]{0,180}localhost/);
+  assert.match(index, /new Set\(\["localhost", "127\.0\.0\.1", "::1"\]\)/);
+  assert.match(index, /async function detectDevicePage\(\)/);
+  assert.match(index, /fetch\("\/api\/status"/);
+  assert.match(index, /__STADIA_DEVICE_PAGE__/);
+  assert.doesNotMatch(index, /location\.hostname === "192\.168\.4\.1"/);
+});
+
+test("controller polling preserves interactive nodes and gates capabilities", async () => {
+  const index = await source("../main/index.html");
+  assert.match(index, /function createControllerElement\(key\)/);
+  assert.match(index, /host\.insertBefore\(row/);
+  assert.doesNotMatch(index, /host\.appendChild\(row\)/);
+  assert.match(index, /data-capability="forget"/);
+  assert.match(index, /controllerPollDue/);
+  assert.match(index, /min-height:44px/);
+  assert.doesNotMatch(index, /\$\("controllers"\)\.innerHTML\s*=\s*list\.map/);
+});
+
+test("firmware defers Bluetooth commands until the controller manager is ready", async () => {
+  const protocol = await source("../main/usb_config_protocol.c");
+  const server = await source("../main/web_server.c");
+  assert.match(protocol, /command_needs_controller_manager/);
+  assert.match(protocol, /USB_CONFIG_STATUS_NOT_READY/);
+  assert.match(server, /void web_server_request_stop\(void\)/);
+  assert.match(server, /controller_manager_not_ready/);
+  assert.match(protocol, /web_server_request_stop\(\)/);
 });

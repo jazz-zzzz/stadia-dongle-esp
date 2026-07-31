@@ -5,6 +5,7 @@
 void web_server_init(void);
 void web_server_start(bool explicit_request);
 void web_server_request_start(bool explicit_request);
+void web_server_request_stop(void);
 void web_server_stop(void);
 void web_server_notify_usb_suspend(bool suspended);
 void web_server_notify_config_changed(void);

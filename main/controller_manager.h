@@ -13,6 +13,7 @@ typedef struct {
 } controller_info_t;
 
 void controller_manager_init(void);
+bool controller_manager_is_ready(void);
 int controller_manager_bond_count(void);
 int controller_manager_list(controller_info_t *out, int max_count);
 bool controller_manager_is_pairing_mode(void);

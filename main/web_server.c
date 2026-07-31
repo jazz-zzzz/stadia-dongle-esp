@@ -180,14 +180,15 @@ static esp_err_t status_handler(httpd_req_t *req)
     snprintf(json, sizeof(json),
              "{\"firmware_version\":\"%s\",\"build_date\":\"%s\",\"uptime_ms\":%lld,"
              "\"state\":\"%s\",\"webui_active\":%s,\"webui_auto_off_seconds\":%d,"
-             "\"webui_clients\":%d,\"ble_connected\":%s,\"connected_count\":%d,\"controller_slots\":%u,"
+             "\"webui_clients\":%d,\"ble_ready\":%s,\"ble_connected\":%s,\"connected_count\":%d,\"controller_slots\":%u,"
              "\"pairing_mode\":%s,\"controller_name\":\"%s\","
              "\"controller_address\":\"%s\",\"battery_percent\":%s,\"usb_configured\":%s,"
              "\"usb_suspended\":%s,\"usb_remote_wakeup_enabled\":%s,"
              "\"last_wake_attempt_us\":%lld,\"last_wake_attempt_allowed\":%s,\"last_error\":\"%s\"}",
              st.firmware_version, st.build_date, esp_timer_get_time() / 1000,
              dongle_state_name(st.state), st.webui_active ? "true" : "false", auto_off,
-             s_sta_count, st.ble_connected ? "true" : "false", st.connected_count,
+             s_sta_count, controller_manager_is_ready() ? "true" : "false",
+             st.ble_connected ? "true" : "false", st.connected_count,
              (unsigned)DONGLE_MAX_CONTROLLERS, st.pairing_mode ? "true" : "false",
              st.controller_name, st.controller_address, battery_json,
              st.usb_configured ? "true" : "false", st.usb_suspended ? "true" : "false",
@@ -254,8 +255,15 @@ static size_t append_live_controller_json(char *json, size_t json_len, size_t of
     return off;
 }
 
+static esp_err_t controller_manager_not_ready(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    return send_text(req, "Bluetooth is still starting", "text/plain");
+}
+
 static esp_err_t controllers_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_info_t list[CONTROLLER_MANAGER_MAX_CONTROLLERS];
     int count = controller_manager_list(list, CONTROLLER_MANAGER_MAX_CONTROLLERS);
     dongle_status_t st;
@@ -306,6 +314,7 @@ static esp_err_t simple_ok(httpd_req_t *req)
 
 static esp_err_t pairing_start_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_start_pairing(120000);
     ble_central_start_scan();
     return simple_ok(req);
@@ -313,18 +322,21 @@ static esp_err_t pairing_start_handler(httpd_req_t *req)
 
 static esp_err_t pairing_stop_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_stop_pairing();
     return simple_ok(req);
 }
 
 static esp_err_t forget_current_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_forget_current();
     return simple_ok(req);
 }
 
 static esp_err_t forget_one_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     char body[128] = {0};
     int got = httpd_req_recv(req, body, sizeof(body) - 1);
     if (got > 0) {
@@ -337,6 +349,7 @@ static esp_err_t forget_one_handler(httpd_req_t *req)
 
 static esp_err_t forget_all_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_forget_all();
     return simple_ok(req);
 }
@@ -773,6 +786,11 @@ void web_server_request_start(bool explicit_request)
 {
     s_start_explicit = s_start_explicit || explicit_request;
     s_start_requested = true;
+}
+
+void web_server_request_stop(void)
+{
+    s_stop_requested = true;
 }
 
 void web_server_stop(void)

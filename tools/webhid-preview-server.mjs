@@ -22,12 +22,10 @@ http
       const html = await readFile(resolve(root, "main", "index.html"), "utf8");
       send(
         response,
-        html
-          .replace(
-            '<script type="module">',
-            '<script type="module" src="/webhid-preview-mock.js"></script><script type="module">',
-          )
-          .replace("const isDevicePage =", "const isDevicePage = false &&"),
+        html.replace(
+          '<script type="module">',
+          '<script type="module" src="/webhid-preview-mock.js"></script><script type="module">',
+        ),
         "text/html; charset=utf-8",
       );
       return;

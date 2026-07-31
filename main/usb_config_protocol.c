@@ -114,6 +114,21 @@ static bool action_valid(uint8_t action)
     return action <= DONGLE_ACTION_CONSUMER_SCAN_PREV;
 }
 
+static bool command_needs_controller_manager(uint8_t command)
+{
+    switch ((usb_config_command_t)command) {
+    case USB_CONFIG_CMD_GET_CONTROLLER_COUNT:
+    case USB_CONFIG_CMD_GET_CONTROLLER:
+    case USB_CONFIG_CMD_START_PAIRING:
+    case USB_CONFIG_CMD_STOP_PAIRING:
+    case USB_CONFIG_CMD_FORGET_CONTROLLER:
+    case USB_CONFIG_CMD_FORGET_ALL:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool live_controller_matches(const dongle_status_t *status, const char *address)
 {
     for (uint8_t i = 0; i < DONGLE_MAX_CONTROLLERS; i++) {
@@ -179,7 +194,8 @@ static void handle_device_info(uint8_t *response)
                              USB_CONFIG_CAP_PAIRING |
                              USB_CONFIG_CAP_FORGET |
                              USB_CONFIG_CAP_WIFI_CONTROL |
-                             USB_CONFIG_CAP_REBOOT);
+                             USB_CONFIG_CAP_REBOOT |
+                             USB_CONFIG_CAP_BLE_READINESS);
     copy_fixed_string(payload + 6, 24, status.firmware_version);
     copy_fixed_string(payload + 30, 25, status.build_date);
     response_set_payload_length(response, USB_CONFIG_MAX_PAYLOAD);
@@ -198,6 +214,7 @@ static void handle_status(uint8_t *response)
     flags |= status.usb_suspended ? 1u << 4 : 0;
     flags |= status.usb_remote_wakeup_enabled ? 1u << 5 : 0;
     flags |= status.last_wake_attempt_allowed ? 1u << 6 : 0;
+    flags |= controller_manager_is_ready() ? 1u << 7 : 0;
 
     int auto_off = 0;
     if (status.webui_auto_off_deadline_us > 0) {
@@ -405,6 +422,11 @@ static bool process_request(const usb_config_request_t *request, uint8_t *respon
     }
     const uint8_t *payload = request->data + USB_CONFIG_HEADER_SIZE;
 
+    if (command_needs_controller_manager(command) && !controller_manager_is_ready()) {
+        response[4] = USB_CONFIG_STATUS_NOT_READY;
+        return false;
+    }
+
     switch ((usb_config_command_t)command) {
     case USB_CONFIG_CMD_PING:
         if (payload_len != 0) {
@@ -497,7 +519,7 @@ static bool process_request(const usb_config_request_t *request, uint8_t *respon
         if (payload_len != 0) {
             response[4] = USB_CONFIG_STATUS_INVALID_PAYLOAD;
         } else {
-            web_server_stop();
+            web_server_request_stop();
         }
         break;
     case USB_CONFIG_CMD_REBOOT:

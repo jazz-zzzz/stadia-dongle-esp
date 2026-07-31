@@ -58,8 +58,8 @@ const server = http.createServer(async (request, response) => {
     text(
       response,
       (await readFile(resolve(root, "main", "index.html"), "utf8")).replace(
-        "const isDevicePage =",
-        "const isDevicePage = true ||",
+        '<script type="module">',
+        '<script>globalThis.__STADIA_DEVICE_PAGE__ = true;</script><script type="module">',
       ),
       "text/html; charset=utf-8",
     );
@@ -92,6 +92,7 @@ const server = http.createServer(async (request, response) => {
       battery_percent: 84,
       controller_address: "A4:77:58:12:34:56",
       controller_name: "Stadia Controller",
+      ble_ready: true,
       ble_connected: true,
       usb_configured: true,
       usb_suspended: false,

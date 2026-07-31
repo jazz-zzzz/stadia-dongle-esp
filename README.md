@@ -57,7 +57,7 @@ ESP32-S3 可以使用手柄要求的 BLE GATT 写入方式控制两个震动马�
 - 使用时机：开发板首次烧录或完整恢复
 - 连接方式：COM/UART USB
 - 写入文件：`docs/firmware-merged.bin`
-- 当前在线入口：[danzig666.github.io/stadia-dongle-esp](https://danzig666.github.io/stadia-dongle-esp/)
+- 当前在线入口：[jazz-zzzz.github.io/stadia-dongle-esp](https://jazz-zzzz.github.io/stadia-dongle-esp/)
 
 当前 `docs/index.html` 会从 `unpkg.com` 加载 ESP Web Tools 组件，因此在线安装器不是完全离线的。烧录数据由浏览器直接发送给开发板，但页面组件和固件仍需先从网页下载。
 
@@ -86,7 +86,7 @@ http://192.168.4.1
 推荐使用桌面版 Chrome 或 Edge：
 
 1. 使用开发板的 **COM/UART USB 接口**连接电脑。
-2. 打开[网页安装器](https://danzig666.github.io/stadia-dongle-esp/)。
+2. 打开[网页安装器](https://jazz-zzzz.github.io/stadia-dongle-esp/)。
 3. 点击 **Install**，选择正确的串口并等待烧录完成。
 4. 断开开发板。
 5. 改用开发板的**原生 USB 接口**连接电脑。

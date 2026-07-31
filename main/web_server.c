@@ -53,6 +53,8 @@ static volatile bool s_usb_suspended;
 
 extern const char s_index_html_start[] asm("_binary_index_html_start");
 extern const char s_index_html_end[] asm("_binary_index_html_end");
+extern const char s_webhid_transport_js_start[] asm("_binary_webhid_transport_js_start");
+extern const char s_webhid_transport_js_end[] asm("_binary_webhid_transport_js_end");
 
 static void parse_form_value(const char *body, const char *key, char *out, size_t out_len);
 static void update_webui_deadline(void);
@@ -149,6 +151,13 @@ static esp_err_t index_handler(httpd_req_t *req)
                            (ssize_t)(s_index_html_end - s_index_html_start - 1));
 }
 
+static esp_err_t webhid_transport_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/javascript");
+    return httpd_resp_send(req, s_webhid_transport_js_start,
+                           (ssize_t)(s_webhid_transport_js_end - s_webhid_transport_js_start - 1));
+}
+
 static esp_err_t status_handler(httpd_req_t *req)
 {
     dongle_status_t st;
@@ -171,14 +180,15 @@ static esp_err_t status_handler(httpd_req_t *req)
     snprintf(json, sizeof(json),
              "{\"firmware_version\":\"%s\",\"build_date\":\"%s\",\"uptime_ms\":%lld,"
              "\"state\":\"%s\",\"webui_active\":%s,\"webui_auto_off_seconds\":%d,"
-             "\"webui_clients\":%d,\"ble_connected\":%s,\"connected_count\":%d,\"controller_slots\":%u,"
+             "\"webui_clients\":%d,\"ble_ready\":%s,\"ble_connected\":%s,\"connected_count\":%d,\"controller_slots\":%u,"
              "\"pairing_mode\":%s,\"controller_name\":\"%s\","
              "\"controller_address\":\"%s\",\"battery_percent\":%s,\"usb_configured\":%s,"
              "\"usb_suspended\":%s,\"usb_remote_wakeup_enabled\":%s,"
              "\"last_wake_attempt_us\":%lld,\"last_wake_attempt_allowed\":%s,\"last_error\":\"%s\"}",
              st.firmware_version, st.build_date, esp_timer_get_time() / 1000,
              dongle_state_name(st.state), st.webui_active ? "true" : "false", auto_off,
-             s_sta_count, st.ble_connected ? "true" : "false", st.connected_count,
+             s_sta_count, controller_manager_is_ready() ? "true" : "false",
+             st.ble_connected ? "true" : "false", st.connected_count,
              (unsigned)DONGLE_MAX_CONTROLLERS, st.pairing_mode ? "true" : "false",
              st.controller_name, st.controller_address, battery_json,
              st.usb_configured ? "true" : "false", st.usb_suspended ? "true" : "false",
@@ -245,8 +255,15 @@ static size_t append_live_controller_json(char *json, size_t json_len, size_t of
     return off;
 }
 
+static esp_err_t controller_manager_not_ready(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    return send_text(req, "Bluetooth is still starting", "text/plain");
+}
+
 static esp_err_t controllers_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_info_t list[CONTROLLER_MANAGER_MAX_CONTROLLERS];
     int count = controller_manager_list(list, CONTROLLER_MANAGER_MAX_CONTROLLERS);
     dongle_status_t st;
@@ -297,6 +314,7 @@ static esp_err_t simple_ok(httpd_req_t *req)
 
 static esp_err_t pairing_start_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_start_pairing(120000);
     ble_central_start_scan();
     return simple_ok(req);
@@ -304,19 +322,21 @@ static esp_err_t pairing_start_handler(httpd_req_t *req)
 
 static esp_err_t pairing_stop_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_stop_pairing();
-    dongle_state_set(DONGLE_STATE_NO_BOND_SETUP);
     return simple_ok(req);
 }
 
 static esp_err_t forget_current_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_forget_current();
     return simple_ok(req);
 }
 
 static esp_err_t forget_one_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     char body[128] = {0};
     int got = httpd_req_recv(req, body, sizeof(body) - 1);
     if (got > 0) {
@@ -329,6 +349,7 @@ static esp_err_t forget_one_handler(httpd_req_t *req)
 
 static esp_err_t forget_all_handler(httpd_req_t *req)
 {
+    if (!controller_manager_is_ready()) return controller_manager_not_ready(req);
     controller_manager_forget_all();
     return simple_ok(req);
 }
@@ -740,6 +761,7 @@ void web_server_start(bool explicit_request)
     cfg.max_uri_handlers = 18;
     ESP_ERROR_CHECK(httpd_start(&s_httpd, &cfg));
     register_uri("/", HTTP_GET, index_handler);
+    register_uri("/webhid_transport.js", HTTP_GET, webhid_transport_handler);
     register_uri("/api/status", HTTP_GET, status_handler);
     register_uri("/api/buttons", HTTP_GET, buttons_handler);
     register_uri("/api/battery", HTTP_GET, status_handler);
@@ -764,6 +786,11 @@ void web_server_request_start(bool explicit_request)
 {
     s_start_explicit = s_start_explicit || explicit_request;
     s_start_requested = true;
+}
+
+void web_server_request_stop(void)
+{
+    s_stop_requested = true;
 }
 
 void web_server_stop(void)
@@ -794,6 +821,11 @@ void web_server_stop(void)
 void web_server_notify_usb_suspend(bool suspended)
 {
     s_usb_suspended = suspended;
+}
+
+void web_server_notify_config_changed(void)
+{
+    s_deadline_set = false;
 }
 
 bool web_server_is_active(void)

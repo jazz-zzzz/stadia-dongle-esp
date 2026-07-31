@@ -1,39 +1,765 @@
-<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Stadia Dongle</title><style>
-body{font-family:Verdana,ui-sans-serif,sans-serif;margin:0;background:radial-gradient(circle at top left,#1e3a5f,#101827 42%,#070b12);color:#e5edf7}
-main{max-width:1100px;margin:auto;padding:22px}.hero{padding:10px 4px 18px}.hero h1{margin:.1em 0;font-size:2.2rem}.hero p{color:#9fb2c8;margin:.2em 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:rgba(15,23,42,.88);border:1px solid #31445f;border-radius:18px;padding:16px;box-shadow:0 10px 32px #0005}
-.wide{grid-column:1/-1}.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{background:#09111f;border:1px solid #263850;border-radius:14px;padding:12px}.k{color:#94a3b8;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}.v{font-size:1.1rem;margin-top:4px;word-break:break-word}
-button,input,select{font:inherit;border-radius:11px;border:1px solid #49617c;background:#0a1322;color:#e5edf7;padding:10px;margin:4px}button{cursor:pointer;transition:.12s transform,.12s background}button:active{transform:scale(.97)}button.busy{background:#334155}button.ok{background:#14532d}button.danger{border-color:#ef4444;color:#fecaca}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.err{color:#fecaca}.muted{color:#9fb2c8}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#1e293b;margin:3px}.raw{font-family:monospace;color:#cbd5e1}
-.ctrl{background:#09111f;border:1px solid #263850;border-radius:14px;padding:12px;margin:8px 0}.ctrltop{display:flex;justify-content:space-between;gap:10px;align-items:center}.ctrl.current{border-color:#22c55e;box-shadow:0 0 0 1px #22c55e55}.live{margin-top:10px;padding-top:10px;border-top:1px solid #263850}.badge{font-size:.78rem;color:#86efac;margin-left:6px}.dot{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:middle;margin-right:8px;border:1px solid #94a3b8}.legend{list-style:none;padding:0;margin:0}.legend li{margin:7px 0}.white{background:#f8fafc}.blue{background:#2563eb}.cyan{background:#06b6d4}.yellow{background:#eab308}.green{background:#22c55e}.orange{background:#f97316}.purple{background:#a855f7}.red{background:#ef4444}.dim{background:#0f766e}
-</style></head><body><main><section class=hero><h1>Stadia Dongle</h1><p>BLE controller bridge, USB gamepad, setup portal, and utility HID.</p><p id=toast class=muted></p></section><div class=grid>
-<section class='card wide'><h2>Status</h2><p id=uierr class=err></p><div class=tiles><div class=tile><div class=k>State</div><div id=state class=v>Loading...</div></div><div class=tile><div class=k>Wi-Fi AP</div><div id=wifi class=v>Loading...</div></div><div class=tile><div class=k>Battery</div><div id=battery class=v>Loading...</div></div><div class=tile><div class=k>Controller</div><div id=controller class=v>Loading...</div></div><div class=tile><div class=k>USB</div><div id=usb class=v>Loading...</div></div><div class=tile><div class=k>Wake</div><div id=wake class=v>Loading...</div></div><div class=tile><div class=k>Firmware</div><div id=fwver class=v>Loading...</div></div></div><div class=row><button onclick='disableWeb(this)'>Disable Web UI</button><button onclick='reboot(this)'>Reboot</button></div></section>
-<section class=card><h2>Input</h2><div id=pressed class=muted>Loading...</div><p class=raw id=raw></p><div class=tiles><div class=tile><div class=k>Left stick</div><div id=lst class=v>-</div></div><div class=tile><div class=k>Right stick</div><div id=rst class=v>-</div></div><div class=tile><div class=k>Triggers</div><div id=trig class=v>-</div></div></div></section>
-<section class=card><h2>Controllers</h2><div class=row><button onclick='pairStart(this)'>Start Pairing</button><button onclick='pairStop(this)'>Stop Pairing</button><button class=danger onclick='forgetAll(this)'>Forget All</button></div><div id=controllers class=muted>Loading...</div></section>
-<section class=card><h2>Mouse Mode</h2><div class=tiles><div class=tile><div class=k>Enable / Disable</div><div class=v>Hold <b>Assistant + Capture</b> for 2 seconds</div></div><div class=tile><div class=k>Rumble feedback</div><div class=v>2 pulses = mouse ON / 3 pulses = mouse OFF</div></div></div><p class=muted>When mouse mode is active, the controller acts as a HID mouse. Controller input is disabled.</p><div class=tiles id=mousestatus><div class=tile><div class=k>Gamepad 0</div><div id=mm0 class=v>-</div></div><div class=tile><div class=k>Gamepad 1</div><div id=mm1 class=v>-</div></div></div></section>
-<section class=card><h2>Extra Buttons</h2><label>Assistant short <select id=as></select></label><label>Assistant long <select id=al></select></label><label>Capture short <select id=cs></select></label><label>Capture long <select id=cl></select></label><label>Long press <input id=lp type=number min=300 max=5000 step=100 style='width:6em'> ms</label><label>Web UI timeout <input id=wt type=number min=15 max=1800 step=15 style='width:6em'> seconds</label><br><label><input id=ds type=checkbox>Disable AP when PC sleeps</label><button onclick='saveMap(this)'>Save mappings</button><p id=mapstatus class=muted></p></section>
-<section class=card><h2>LED Legend</h2><ul class=legend><li><span class='dot white'></span>Booting: soft white pulse</li><li><span class='dot blue'></span>Scanning / no controller: dim blue heartbeat</li><li><span class='dot blue'></span>Scanning + Wi-Fi AP on: blue-yellow alternating heartbeat</li><li><span class='dot green'></span>1 controller in gamepad mode: green heartbeat</li><li><span class='dot green'></span>2 controllers in gamepad mode: faster green heartbeat</li><li><span class='dot purple'></span>PC sleeping: dim purple heartbeat</li><li><span class='dot orange'></span>Mouse mode active: orange heartbeat</li><li><span class='dot red'></span>Error: red pulsing</li><li><span class='dot purple'></span>OTA update: purple/yellow animation</li><li><span class='dot white'></span>Remote wake sent: brief white flash</li></ul></section>
-<section class=card><h2>Firmware Update</h2><input id=fw type=file><button onclick='uploadFw(this)'>Upload</button><p id=update class=muted></p></section>
-</div></main><script>
-const $=id=>document.getElementById(id);
-let currentAddr='';
-const actions=['none','f13','f14','f15','f16','f17','f18','f19','f20','f21','f22','f23','f24','printscreen','escape','tab','space','enter','backspace','insert','delete','home','end','page_up','page_down','arrow_up','arrow_down','arrow_left','arrow_right','volume_up','volume_down','mute','play_pause','next_track','prev_track','start_webui','remote_wake_only'];
-for(const id of ['as','al','cs','cl']){let s=$(id);actions.forEach(a=>s.add(new Option(a,a)));}
-async function api(p,o={}){let c=new AbortController(),tm=setTimeout(()=>c.abort(),10000);try{let r=await fetch(p,{...o,signal:c.signal});let t=r.headers.get('content-type')||'';let v=t.includes('json')?await r.json():await r.text();if(!r.ok)throw new Error(typeof v==='string'?v:JSON.stringify(v));return v}catch(e){if(e.name==='AbortError')throw new Error('request timed out');throw e}finally{clearTimeout(tm)}}
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function setToast(s){$('toast').textContent=s;setTimeout(()=>{if($('toast').textContent==s)$('toast').textContent=''},2500)}
-async function clicked(btn,msg,fn){let old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.classList.add('busy');btn.textContent=msg||'Working...'}try{await fn();if(btn){btn.classList.remove('busy');btn.classList.add('ok');btn.textContent='Done'}setToast('Done')}catch(e){setToast('Failed: '+e.message);if(btn)btn.textContent='Failed'}finally{setTimeout(()=>{if(btn){btn.disabled=false;btn.classList.remove('busy','ok');btn.textContent=old}},900)}}
-function renderStatus(st){currentAddr=st.controller_address||'';$('state').textContent=String(st.state||'').split('_').join(' ');$('wifi').textContent=st.webui_active?('AP on / clients '+(st.webui_clients||0)+(st.webui_auto_off_seconds>0?' / auto-off '+st.webui_auto_off_seconds+'s':' / no timeout')):'AP off';$('battery').textContent=st.battery_percent==null?'Unavailable':st.battery_percent+'%';$('controller').innerHTML=st.ble_connected?esc(st.controller_name||'Connected')+'<br><span class=muted>'+esc(currentAddr)+'</span>':'Not connected';$('usb').textContent=(st.usb_configured?'Configured':'Not configured')+(st.usb_suspended?' / suspended':' / active');$('wake').textContent=st.usb_suspended?(st.usb_remote_wakeup_enabled?'Armed by host: controller can wake PC':'USB suspended, but host did not arm wake'):'Not armed: Windows has not suspended/armed this dongle. Enable wake on the HID Keyboard Device if available.';$('fwver').textContent=st.firmware_version+' / '+st.build_date;if(st.webui_auto_off_seconds>0)$('toast').textContent='Web UI auto-off in '+st.webui_auto_off_seconds+'s unless a Wi-Fi client is connected'}
-function renderButtons(b){let names=(b.pressed||'').split(',').map(x=>x.trim()).filter(Boolean);$('pressed').innerHTML=names.length?names.map(n=>'<span class=pill>'+esc(n)+'</span>').join(''):'No buttons pressed';$('raw').textContent=b.raw?'RAW '+b.raw:'';$('lst').textContent=b.lx+','+b.ly;$('rst').textContent=b.rx+','+b.ry;$('trig').textContent='L '+b.lt+' / R '+b.rt}
-function renderControllers(c){let list=c.controllers||[];if(!list.length){$('controllers').innerHTML='No stored controllers';return}$('controllers').innerHTML=list.map(x=>{let cur=!!x.connected;let batt=x.battery_percent==null?'battery unavailable':x.battery_percent+'%';let sub='USB gamepad '+x.usb_gamepad_index+' / slot '+x.slot_index+' / '+(x.ready?'ready':cur?'connecting':'stored')+' / '+batt;let names=(x.pressed||'').split(',').map(v=>v.trim()).filter(Boolean);let pills=names.length?names.map(n=>'<span class=pill>'+esc(n)+'</span>').join(''):'<span class=muted>No buttons pressed</span>';let live=cur?'<div class=live><div class=k>Pressed</div>'+pills+'<div class=raw>'+(x.raw?'RAW '+esc(x.raw):'RAW unavailable')+'</div><div class=tiles><div class=tile><div class=k>Left stick</div><div class=v>'+x.lx+','+x.ly+'</div></div><div class=tile><div class=k>Right stick</div><div class=v>'+x.rx+','+x.ry+'</div></div><div class=tile><div class=k>Triggers</div><div class=v>L '+x.lt+' / R '+x.rt+'</div></div></div></div>':'';return '<div class="ctrl '+(cur?'current':'')+'"><div class=ctrltop><div><b>'+esc(x.name||'Stadia Controller')+'</b>'+(cur?'<span class=badge>connected</span>':'')+'<br><span class=muted>'+esc(x.address)+'</span><br><span class=muted>'+esc(sub)+'</span></div><button class=danger data-address="'+esc(x.address)+'" onclick="forgetController(this,this.dataset.address)">Forget</button></div>'+live+'</div>'}).join('');$('mm0').textContent=c.mouse_mode_0?'Active':'Inactive';$('mm1').textContent=c.mouse_mode_1?'Active':'Inactive'}
-async function loadStatus(){try{$('uierr').textContent='';let st=await api('/api/status');renderStatus(st);let b=await api('/api/buttons');renderButtons(b);let c=await api('/api/controllers');renderControllers(c)}catch(e){$('uierr').textContent='Status load failed: '+e.message}}
-function applyConfig(m){$('as').value=m.assistant_short;$('al').value=m.assistant_long;$('cs').value=m.capture_short;$('cl').value=m.capture_long;$('lp').value=m.long_press_ms||1000;$('wt').value=m.webui_timeout_seconds||120;$('ds').checked=m.disable_ap_on_suspend!==false}
-async function loadConfig(){try{let m=await api('/api/config/keymap');applyConfig(m);$('mapstatus').textContent='Mappings loaded'}catch(e){$('mapstatus').textContent='Config load failed: '+e.message}}
-async function load(){await loadStatus();await loadConfig()}
-async function pairStart(b){clicked(b,'Starting...',async()=>{await api('/api/pairing/start',{method:'POST'});await loadStatus()})}async function pairStop(b){clicked(b,'Stopping...',async()=>{await api('/api/pairing/stop',{method:'POST'});await loadStatus()})}
-async function forgetController(b,a){if(confirm('Forget '+a+'?'))clicked(b,'Forgetting...',async()=>{await api('/api/controllers/forget',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({address:a})});await loadStatus()})}
-async function forgetAll(b){if(confirm('Forget all bonded controllers?'))clicked(b,'Forgetting...',async()=>{await api('/api/controllers/forget-all',{method:'POST'});await loadStatus()})}
-async function saveMap(b){clicked(b,'Saving...',async()=>{let body=new URLSearchParams({assistant_short:$('as').value,assistant_long:$('al').value,capture_short:$('cs').value,capture_long:$('cl').value,long_press_ms:$('lp').value,webui_timeout_seconds:$('wt').value,disable_ap_on_suspend:$('ds').checked?'on':'off'});let saved=await api('/api/config/keymap',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});applyConfig(saved);$('mapstatus').textContent='Mappings saved to flash'})}
-async function disableWeb(b){clicked(b,'Disabling...',async()=>{await api('/api/webui/disable',{method:'POST'})})}async function reboot(b){clicked(b,'Rebooting...',async()=>{await api('/api/reboot',{method:'POST'})})}
-async function uploadFw(b){let f=$('fw').files[0];if(!f)return;$('update').textContent='Uploading...';clicked(b,'Uploading...',async()=>{$('update').textContent=await api('/api/update',{method:'POST',body:f})})}
-window.addEventListener('load',()=>{load();setInterval(loadStatus,3000)});</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Stadia Dongle</title>
+  <style>
+    :root{color-scheme:dark;--bg:#070b12;--surface:#0f172a;--surface-2:#09111f;--control:#0a1322;--control-hover:#14243b;--control-busy:#334155;--control-ok:#14532d;--border:#31445f;--border-strong:#49617c;--border-hover:#6b8db5;--tile-border:#263850;--text:#e5edf7;--muted:#9fb2c8;--key:#94a3b8;--raw:#cbd5e1;--accent:#60a5fa;--accent-strong:#1d4ed8;--success:#4ade80;--success-border:#22c55e;--warning:#facc15;--danger:#fca5a5;--danger-text:#fecaca;--danger-border:#ef4444;--notice:#fde68a;--focus:#93c5fd;--pill:#1e293b;--badge:#bbf7d0;--dot-idle:#64748b}
+    *{box-sizing:border-box}
+    body{font-family:Verdana,ui-sans-serif,sans-serif;margin:0;background:radial-gradient(circle at top left,#1e3a5f,var(--surface) 42%,var(--bg));color:var(--text);min-height:100vh}
+    main{max-width:1100px;margin:auto;padding:22px}
+    .hero{padding:10px 4px 18px}
+    .hero h1{margin:.1em 0;font-size:2.2rem}
+    .hero>p{color:var(--muted);margin:.35em 0;max-width:70ch}
+    .connection{display:flex;align-items:center;gap:12px;margin-top:18px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:rgba(9,17,31,.92)}
+    .connection-copy{min-width:180px;flex:1}
+    .connection-copy strong,.connection-copy span{display:block}
+    .connection-copy span{color:var(--muted);font-size:.9rem;margin-top:3px}
+    .status-dot{width:12px;height:12px;border-radius:50%;background:var(--dot-idle);box-shadow:0 0 0 4px color-mix(in srgb,var(--dot-idle) 14%,transparent);flex:0 0 auto}
+    .connection.connected .status-dot{background:var(--success);box-shadow:0 0 0 4px color-mix(in srgb,var(--success) 14%,transparent)}
+    .connection.connecting .status-dot,.connection.restarting .status-dot{background:var(--warning);box-shadow:0 0 0 4px color-mix(in srgb,var(--warning) 14%,transparent)}
+    .connection.restarting .status-dot{animation:pulse 1.2s ease-in-out infinite}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+    .card{background:rgba(15,23,42,.9);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 10px 32px #0005}
+    .wide{grid-column:1/-1}
+    h2{margin-top:0}
+    .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .tile{min-width:0;border-top:1px solid var(--tile-border);padding:10px 0}
+    .k{color:var(--key);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}
+    .v{font-size:1.1rem;margin-top:4px;word-break:break-word}
+    button,input,select{font:inherit;min-height:44px;border-radius:11px;border:1px solid var(--border-strong);background:var(--control);color:var(--text);padding:10px 12px;margin:4px}
+    button{cursor:pointer;transition:transform .15s ease-out,background .15s ease-out,border-color .15s ease-out}
+    button:hover:not(:disabled){background:var(--control-hover);border-color:var(--border-hover)}
+    button:active:not(:disabled){transform:scale(.98)}
+    button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+    button:disabled,input:disabled,select:disabled{cursor:not-allowed;opacity:.52}
+    button.primary{background:var(--accent-strong);border-color:var(--accent)}
+    button.busy{background:var(--control-busy)}
+    button.ok{background:var(--control-ok)}
+    button.danger{border-color:var(--danger-border);color:var(--danger-text)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .err{color:var(--danger-text)}
+    .notice{color:var(--notice)}
+    .muted{color:var(--muted)}
+    .pill{display:inline-block;padding:5px 9px;border-radius:999px;background:var(--pill);margin:3px}
+    .raw{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--raw)}
+    .ctrl{border:0;border-top:1px solid var(--border);padding:14px 0;margin:0;background:transparent}
+    .ctrl.current{border-color:var(--success-border)}
+    .ctrltop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .badge{font-size:.75rem;color:var(--badge);margin-inline-start:8px}
+    .live{margin-top:12px;padding-top:10px;border-top:1px solid var(--tile-border)}
+    .legend{padding-left:0;list-style:none}
+    .legend li{margin:8px 0}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:8px}
+    .green{background:#22c55e}.blue{background:#3b82f6}.purple{background:#a855f7}.orange{background:#f97316}.red{background:#ef4444}.white{background:#e2e8f0}
+    form label{display:block;color:var(--muted);font-size:.9rem;margin-top:8px}
+    form select,form input[type=number]{width:100%;margin:5px 0 8px}
+    .check-row{display:flex;align-items:center;gap:6px;margin:8px 0}
+    .check-row input{width:auto;margin:0}
+    .check-row label{margin:0}
+    #firmware{max-width:100%;margin-left:0}
+    [hidden]{display:none!important}
+    @media(max-width:560px){main{padding:14px}.tiles{grid-template-columns:1fr}.connection{align-items:flex-start;flex-wrap:wrap}.connection-copy{min-width:calc(100% - 32px)}.ctrltop{display:block}.ctrltop button{margin-top:10px}}
+    @keyframes pulse{50%{opacity:.45}}
+    @media(forced-colors:active){.status-dot,.dot{forced-color-adjust:none;border:1px solid CanvasText}button:focus-visible,input:focus-visible,select:focus-visible{outline-color:Highlight}}
+    @media(prefers-reduced-motion:reduce){button{transition:none}.connection.restarting .status-dot{animation:none}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Stadia Dongle</h1>
+    <p>BLE controller bridge, USB gamepad, setup portal, and utility HID.</p>
+    <div id="connection" class="connection" role="status" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <div class="connection-copy">
+        <strong id="connectionTitle">Receiver not connected</strong>
+        <span id="connectionDetail">Connect the receiver over USB without changing your Windows Wi-Fi.</span>
+      </div>
+      <button id="connectUsb" class="primary" type="button">Connect USB</button>
+      <button id="disconnectUsb" type="button" hidden>Disconnect</button>
+    </div>
+    <p id="transportError" class="err" role="alert"></p>
+    <p id="toast" class="muted" aria-live="polite"></p>
+  </section>
+
+  <div class="grid">
+    <section class="card wide">
+      <h2>Status</h2>
+      <p id="uierr" class="err" role="alert"></p>
+      <div class="tiles">
+        <div class="tile"><div class="k">State</div><div id="state" class="v">Not connected</div></div>
+        <div class="tile"><div class="k">Wi-Fi AP</div><div id="wifi" class="v">Unknown</div></div>
+        <div class="tile"><div class="k">Battery</div><div id="battery" class="v">Unknown</div></div>
+        <div class="tile"><div class="k">Controller</div><div id="controller" class="v">Unknown</div></div>
+        <div class="tile"><div class="k">USB</div><div id="usb" class="v">Unknown</div></div>
+        <div class="tile"><div class="k">Wake</div><div id="wake" class="v">Unknown</div></div>
+        <div class="tile"><div class="k">Firmware</div><div id="fwver" class="v">Unknown</div></div>
+      </div>
+      <div class="row">
+        <button id="wifiToggle" data-device data-capability="wifiControl" type="button">Stop Wi-Fi AP</button>
+        <button id="rebootButton" data-device data-capability="reboot" type="button">Reboot</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Input</h2>
+      <div id="pressed" class="muted">Connect a receiver to inspect input.</div>
+      <p class="raw" id="raw"></p>
+      <div class="tiles">
+        <div class="tile"><div class="k">Left stick</div><div id="lst" class="v">-</div></div>
+        <div class="tile"><div class="k">Right stick</div><div id="rst" class="v">-</div></div>
+        <div class="tile"><div class="k">Triggers</div><div id="trig" class="v">-</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Controllers</h2>
+      <div class="row">
+        <button data-device data-capability="pairing" type="button" onclick="pairStart(this)">Start Pairing</button>
+        <button data-device data-capability="pairing" type="button" onclick="pairStop(this)">Stop Pairing</button>
+        <button data-device data-capability="forget" class="danger" type="button" onclick="forgetAll(this)">Forget All</button>
+      </div>
+      <div id="controllers" class="muted">Connect a receiver to manage controllers.</div>
+    </section>
+
+    <section class="card">
+      <h2>Mouse Mode</h2>
+      <div class="tiles">
+        <div class="tile"><div class="k">Enable / Disable</div><div class="v">Hold <b>Assistant + Capture</b> for 2 seconds</div></div>
+        <div class="tile"><div class="k">Rumble feedback</div><div class="v">2 pulses = mouse ON / 3 pulses = mouse OFF</div></div>
+      </div>
+      <p class="muted">When mouse mode is active, the controller acts as a HID mouse. Controller input is disabled.</p>
+      <div class="tiles" id="mousestatus">
+        <div class="tile"><div class="k">Gamepad 0</div><div id="mm0" class="v">-</div></div>
+        <div class="tile"><div class="k">Gamepad 1</div><div id="mm1" class="v">-</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Extra Buttons</h2>
+      <form id="mappingForm">
+        <label for="as">Assistant short</label><select data-device data-capability="keymap" id="as"></select>
+        <label for="al">Assistant long</label><select data-device data-capability="keymap" id="al"></select>
+        <label for="cs">Capture short</label><select data-device data-capability="keymap" id="cs"></select>
+        <label for="cl">Capture long</label><select data-device data-capability="keymap" id="cl"></select>
+        <label for="lp">Long press, milliseconds</label><input data-device data-capability="keymap" id="lp" type="number" min="300" max="5000" step="50">
+        <label for="wt">Web UI timeout, seconds</label><input data-device data-capability="keymap" id="wt" type="number" min="15" max="1800" step="15">
+        <div class="check-row"><input data-device data-capability="keymap" id="ds" type="checkbox"><label for="ds">Disable AP when PC sleeps</label></div>
+        <button data-device data-capability="keymap" class="primary" type="submit">Save mappings</button>
+      </form>
+      <p id="mapstatus" class="muted" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>LED Legend</h2>
+      <ul class="legend">
+        <li><span class="dot white"></span>Booting: soft white pulse</li>
+        <li><span class="dot blue"></span>Scanning / no controller: dim blue heartbeat</li>
+        <li><span class="dot blue"></span>Scanning + Wi-Fi AP on: blue-yellow alternating heartbeat</li>
+        <li><span class="dot green"></span>1 controller in gamepad mode: green heartbeat</li>
+        <li><span class="dot green"></span>2 controllers in gamepad mode: faster green heartbeat</li>
+        <li><span class="dot purple"></span>PC sleeping: dim purple heartbeat</li>
+        <li><span class="dot orange"></span>Mouse mode active: orange heartbeat</li>
+        <li><span class="dot red"></span>Error: red pulsing</li>
+        <li><span class="dot purple"></span>OTA update: purple/yellow animation</li>
+        <li><span class="dot white"></span>Remote wake sent: brief white flash</li>
+      </ul>
+    </section>
+
+    <section class="card wide">
+      <h2>Firmware Update</h2>
+      <p id="otaHelp" class="muted">Firmware uploads are available when this page is opened from the receiver Wi-Fi.</p>
+      <form id="firmwareForm">
+        <label for="firmware">Application firmware (.bin)</label>
+        <input data-ota id="firmware" type="file" accept=".bin">
+        <button data-ota type="submit">Upload</button>
+      </form>
+      <p id="upstatus" class="muted" aria-live="polite"></p>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import { CAPABILITY, StadiaUsbApi, WebHidTransport } from "./webhid_transport.js";
+
+const $ = (id) => document.getElementById(id);
+const actions = ["none","f13","f14","f15","f16","f17","f18","f19","f20","f21","f22","f23","f24","printscreen","escape","tab","space","enter","backspace","insert","delete","home","end","page_up","page_down","arrow_up","arrow_down","arrow_left","arrow_right","volume_up","volume_down","mute","play_pause","next_track","prev_track","start_webui","remote_wake_only"];
+const state = {
+  backend: null,
+  deviceInfo: null,
+  controlsEnabled: false,
+  bleReady: false,
+  controllerPollDue: 0,
+  restartingUntil: 0,
+  mode: "disconnected",
+  polling: false,
+  pollTimer: null,
+  wifiActive: false,
+};
+
+class HttpApi {
+  async request(path, options = {}) {
+    const response = await fetch(path, { cache: "no-store", ...options });
+    const text = await response.text();
+    if (!response.ok) throw new Error(text || `HTTP ${response.status}`);
+    const type = response.headers.get("content-type") || "";
+    return type.includes("application/json") ? JSON.parse(text) : text;
+  }
+}
+
+const usbApi = new StadiaUsbApi();
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+async function detectDevicePage() {
+  if (globalThis.__STADIA_DEVICE_PAGE__ === true) return true;
+  if (location.protocol !== "http:" || loopbackHosts.has(location.hostname)) {
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2000);
+  try {
+    const response = await fetch("/api/status", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return false;
+    if (!(response.headers.get("content-type") || "").includes("application/json")) {
+      return false;
+    }
+    const status = await response.json();
+    return Boolean(
+      status &&
+        typeof status === "object" &&
+        "firmware_version" in status &&
+        "state" in status,
+    );
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const isDevicePage = await detectDevicePage();
+
+function esc(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function hasCapability(name) {
+  if (!name || state.mode !== "usb") return true;
+  return Boolean(state.deviceInfo?.capabilities & CAPABILITY[name]);
+}
+
+function refreshDeviceControls() {
+  document.querySelectorAll("[data-device]").forEach((control) => {
+    const capability = control.dataset.capability;
+    const needsBluetooth =
+      capability === "pairing" || capability === "forget";
+    control.disabled =
+      !state.controlsEnabled ||
+      control.classList.contains("busy") ||
+      !hasCapability(capability) ||
+      (needsBluetooth && !state.bleReady);
+  });
+}
+
+function setDeviceControls(enabled) {
+  state.controlsEnabled = enabled;
+  refreshDeviceControls();
+}
+
+function setOtaControls(enabled) {
+  document.querySelectorAll("[data-ota]").forEach((control) => {
+    control.disabled = !enabled;
+  });
+  $("otaHelp").textContent = enabled
+    ? "Upload an application .bin built for this firmware. Do not upload a merged factory image."
+    : "USB firmware upload is not enabled yet. Start the Wi-Fi AP, connect to StadiaDongle-XXXX, then open http://192.168.4.1.";
+}
+
+function clearDeviceState() {
+  state.wifiActive = false;
+  state.deviceInfo = null;
+  state.bleReady = false;
+  state.controllerPollDue = 0;
+  $("state").textContent = "Not connected";
+  $("wifi").textContent = "Unknown";
+  $("battery").textContent = "Unknown";
+  $("controller").textContent = "Unknown";
+  $("usb").textContent = "Unknown";
+  $("wake").textContent = "Unknown";
+  $("fwver").textContent = "Unknown";
+  $("wifiToggle").textContent = "Start Wi-Fi AP";
+  $("pressed").textContent = "Connect a receiver to inspect input.";
+  $("raw").textContent = "";
+  $("lst").textContent = "-";
+  $("rst").textContent = "-";
+  $("trig").textContent = "-";
+  $("controllers").textContent = "Connect a receiver to manage controllers.";
+  $("mm0").textContent = "-";
+  $("mm1").textContent = "-";
+  $("toast").textContent = "";
+}
+
+function setConnection(mode, title, detail) {
+  state.mode = mode;
+  const panel = $("connection");
+  panel.className = `connection ${mode === "usb" || mode === "wifi" ? "connected" : mode}`;
+  $("connectionTitle").textContent = title;
+  $("connectionDetail").textContent = detail;
+  $("connectUsb").hidden = mode === "usb" || mode === "wifi" || !WebHidTransport.isSupported();
+  $("disconnectUsb").hidden = mode !== "usb";
+  setDeviceControls(mode === "usb" || mode === "wifi");
+  setOtaControls(mode === "wifi");
+  if (mode !== "usb" && mode !== "wifi") {
+    stopPolling();
+    clearDeviceState();
+  }
+}
+
+async function api(path, options) {
+  if (!state.backend) throw new Error("Connect the receiver first.");
+  return state.backend.request(path, options);
+}
+
+function renderStatus(status) {
+  state.wifiActive = Boolean(status.webui_active);
+  state.bleReady = status.ble_ready !== false;
+  $("state").textContent = String(status.state || "").replaceAll("_", " ");
+  $("wifi").textContent = status.webui_active
+    ? `AP on / clients ${status.webui_clients || 0}${status.webui_auto_off_seconds > 0 ? ` / auto-off ${status.webui_auto_off_seconds}s` : " / no timeout"}`
+    : "AP off";
+  $("battery").textContent = status.battery_percent == null ? "Unavailable" : `${status.battery_percent}%`;
+  $("controller").innerHTML = !state.bleReady
+    ? "Bluetooth starting"
+    : status.ble_connected
+      ? `${esc(status.controller_name || "Connected")}<br><span class="muted">${esc(status.controller_address || "")}</span>`
+      : "Not connected";
+  $("usb").textContent = `${status.usb_configured ? "Configured" : "Not configured"}${status.usb_suspended ? " / suspended" : " / active"}`;
+  $("wake").textContent = status.usb_suspended
+    ? status.usb_remote_wakeup_enabled
+      ? "Armed by host: controller can wake PC"
+      : "USB suspended, but host did not arm wake"
+    : "Not armed: Windows has not suspended the dongle.";
+  $("fwver").textContent = `${status.firmware_version || "unknown"} / ${status.build_date || "unknown"}`;
+  $("wifiToggle").textContent = status.webui_active ? "Stop Wi-Fi AP" : "Start Wi-Fi AP";
+  $("toast").textContent = status.webui_auto_off_seconds > 0
+    ? `Wi-Fi Web UI auto-off in ${status.webui_auto_off_seconds}s when no Wi-Fi client is connected`
+    : state.mode === "usb"
+      ? "Configuration is travelling directly over USB. Windows Wi-Fi stays connected."
+      : "";
+  refreshDeviceControls();
+}
+
+function renderButtons(buttons) {
+  const names = (buttons.pressed || "").split(",").map((name) => name.trim()).filter(Boolean);
+  $("pressed").innerHTML = names.length
+    ? names.map((name) => `<span class="pill">${esc(name)}</span>`).join("")
+    : "No buttons pressed";
+  $("raw").textContent = buttons.raw ? `RAW ${buttons.raw}` : "";
+  $("lst").textContent = `${buttons.lx},${buttons.ly}`;
+  $("rst").textContent = `${buttons.rx},${buttons.ry}`;
+  $("trig").textContent = `L ${buttons.lt} / R ${buttons.rt}`;
+}
+
+function controllerKey(controller) {
+  return controller.address || `slot-${controller.slot_index}`;
+}
+
+function createControllerElement(key) {
+  const row = document.createElement("div");
+  row.className = "ctrl";
+  row.dataset.controllerKey = key;
+  row.innerHTML = `
+    <div class="ctrltop">
+      <div>
+        <b data-field="name"></b><span class="badge" data-field="badge">connected</span><br>
+        <span class="muted" data-field="address"></span><br>
+        <span class="muted" data-field="summary"></span>
+      </div>
+      <button class="danger" data-device data-capability="forget" type="button">Forget</button>
+    </div>
+    <div class="live" data-field="live">
+      <div class="k">Pressed</div>
+      <div data-field="pressed"></div>
+      <div class="raw" data-field="raw"></div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Left stick</div><div class="v" data-field="left"></div></div>
+        <div class="tile"><div class="k">Right stick</div><div class="v" data-field="right"></div></div>
+        <div class="tile"><div class="k">Triggers</div><div class="v" data-field="triggers"></div></div>
+      </div>
+    </div>`;
+  const forget = row.querySelector("button");
+  forget.addEventListener("click", () => {
+    window.forgetController(forget, forget.dataset.address);
+  });
+  return row;
+}
+
+function renderControllers(result) {
+  const host = $("controllers");
+  const list = result.controllers || [];
+  if (result.unavailable) {
+    host.replaceChildren();
+    host.textContent = result.message || "Bluetooth is starting. Controller management will become available automatically.";
+  } else {
+    if (list.length && !host.querySelector("[data-controller-key]")) {
+      host.replaceChildren();
+    }
+    const keep = new Set();
+    for (const [index, controller] of list.entries()) {
+      const key = controllerKey(controller);
+      keep.add(key);
+      let row = Array.from(host.children).find(
+        (child) => child.dataset.controllerKey === key,
+      );
+      if (!row) row = createControllerElement(key);
+
+      const current = Boolean(controller.connected);
+      const battery =
+        controller.battery_percent == null
+          ? "battery unavailable"
+          : `${controller.battery_percent}%`;
+      const summary =
+        `USB gamepad ${controller.usb_gamepad_index} / slot ${controller.slot_index} / ` +
+        `${controller.ready ? "ready" : current ? "connecting" : "stored"} / ${battery}`;
+      const names = (controller.pressed || "")
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean);
+
+      row.classList.toggle("current", current);
+      row.querySelector('[data-field="name"]').textContent =
+        controller.name || "Stadia Controller";
+      row.querySelector('[data-field="badge"]').hidden = !current;
+      row.querySelector('[data-field="address"]').textContent =
+        controller.address || "Address unavailable";
+      row.querySelector('[data-field="summary"]').textContent = summary;
+
+      const forget = row.querySelector("button");
+      forget.dataset.address = controller.address || "";
+      const live = row.querySelector('[data-field="live"]');
+      live.hidden = !current;
+      if (current) {
+        row.querySelector('[data-field="pressed"]').innerHTML = names.length
+          ? names.map((name) => `<span class="pill">${esc(name)}</span>`).join("")
+          : '<span class="muted">No buttons pressed</span>';
+        row.querySelector('[data-field="raw"]').textContent = controller.raw
+          ? `RAW ${controller.raw}`
+          : "RAW unavailable";
+        row.querySelector('[data-field="left"]').textContent =
+          `${controller.lx},${controller.ly}`;
+        row.querySelector('[data-field="right"]').textContent =
+          `${controller.rx},${controller.ry}`;
+        row.querySelector('[data-field="triggers"]').textContent =
+          `L ${controller.lt} / R ${controller.rt}`;
+      }
+      if (host.children[index] !== row) {
+        host.insertBefore(row, host.children[index] || null);
+      }
+    }
+
+    for (const child of Array.from(host.children)) {
+      if (child.dataset.controllerKey && !keep.has(child.dataset.controllerKey)) {
+        child.remove();
+      }
+    }
+    if (!list.length) {
+      host.replaceChildren();
+      host.textContent = "No stored controllers";
+    }
+  }
+  $("mm0").textContent = result.mouse_mode_0 ? "Active" : "Inactive";
+  $("mm1").textContent = result.mouse_mode_1 ? "Active" : "Inactive";
+  refreshDeviceControls();
+}
+
+async function loadStatus({ forceControllers = false } = {}) {
+  if (!state.backend || state.polling) return;
+  state.polling = true;
+  try {
+    $("uierr").textContent = "";
+    const status = await api("/api/status");
+    renderStatus(status);
+
+    if (hasCapability("liveInput")) {
+      renderButtons(await api("/api/buttons"));
+    } else {
+      $("pressed").textContent = "Live input is not supported by this firmware.";
+      $("raw").textContent = "";
+    }
+
+    if (!state.bleReady) {
+      state.controllerPollDue = 0;
+      renderControllers({
+        controllers: [],
+        unavailable: true,
+        mouse_mode_0: false,
+        mouse_mode_1: false,
+      });
+    } else if (!hasCapability("controllers")) {
+      renderControllers({
+        controllers: [],
+        unavailable: true,
+        message: "Controller management is not supported by this firmware.",
+        mouse_mode_0: false,
+        mouse_mode_1: false,
+      });
+    } else if (forceControllers || Date.now() >= state.controllerPollDue) {
+      renderControllers(await api("/api/controllers"));
+      state.controllerPollDue = Date.now() + 2500;
+    }
+  } catch (error) {
+    $("uierr").textContent = `Status load failed: ${error.message}`;
+  } finally {
+    state.polling = false;
+  }
+}
+
+function applyConfig(mapping) {
+  $("as").value = mapping.assistant_short;
+  $("al").value = mapping.assistant_long;
+  $("cs").value = mapping.capture_short;
+  $("cl").value = mapping.capture_long;
+  $("lp").value = mapping.long_press_ms || 1000;
+  $("wt").value = mapping.webui_timeout_seconds || 120;
+  $("ds").checked = mapping.disable_ap_on_suspend !== false;
+}
+
+async function loadConfig() {
+  if (!hasCapability("keymap")) {
+    $("mapstatus").textContent = "Button mapping is not supported by this firmware.";
+    refreshDeviceControls();
+    return;
+  }
+  try {
+    applyConfig(await api("/api/config/keymap"));
+    $("mapstatus").textContent = "Mappings loaded";
+  } catch (error) {
+    $("mapstatus").textContent = `Config load failed: ${error.message}`;
+  }
+}
+
+function stopPolling() {
+  if (state.pollTimer) clearTimeout(state.pollTimer);
+  state.pollTimer = null;
+}
+
+function schedulePoll() {
+  stopPolling();
+  if (!state.backend) return;
+  state.pollTimer = setTimeout(async () => {
+    await loadStatus();
+    schedulePoll();
+  }, state.mode === "usb" ? 650 : 400);
+}
+
+async function startConnectedSession() {
+  await Promise.all([loadStatus({ forceControllers: true }), loadConfig()]);
+  schedulePoll();
+}
+
+async function connectUsb(prompt = true) {
+  $("transportError").textContent = "";
+  setConnection("connecting", "Connecting over USB", "Select the Stadia receiver in the browser prompt.");
+  try {
+    const info = await usbApi.connect({ prompt });
+    state.backend = usbApi;
+    state.deviceInfo = info;
+    state.restartingUntil = 0;
+    setConnection("usb", "USB connected", `${info.firmware_version || "Firmware detected"}. Configuration stays on this computer.`);
+    usbApi.onDisconnect(handleUsbDisconnect);
+    await startConnectedSession();
+    return true;
+  } catch (error) {
+    state.backend = null;
+    state.deviceInfo = null;
+    setConnection("disconnected", "Receiver not connected", "Connect the receiver over USB without changing your Windows Wi-Fi.");
+    if (prompt || !String(error.message).includes("No Stadia receiver")) {
+      $("transportError").textContent = error.message;
+    }
+    return false;
+  }
+}
+
+function handleUsbDisconnect() {
+  state.backend = null;
+  state.deviceInfo = null;
+  state.bleReady = false;
+  if (Date.now() < state.restartingUntil) {
+    setConnection("restarting", "Receiver restarting", "Reconnect after the receiver finishes booting.");
+    $("transportError").textContent = "";
+    $("toast").textContent = "Receiver is rebooting. Reconnect in a few seconds.";
+    return;
+  }
+  state.restartingUntil = 0;
+  setConnection("disconnected", "USB receiver disconnected", "Reconnect the receiver, then choose Connect USB.");
+  $("transportError").textContent = "The USB connection closed. Reconnect to continue.";
+}
+
+async function clicked(button, label, work) {
+  const old = button.textContent;
+  let succeeded = false;
+  button.disabled = true;
+  button.classList.add("busy");
+  button.setAttribute("aria-busy", "true");
+  button.textContent = label;
+  $("uierr").textContent = "";
+  try {
+    const result = await work();
+    succeeded = result !== false;
+    if (succeeded) button.classList.add("ok");
+  } catch (error) {
+    $("uierr").textContent = error.message;
+  } finally {
+    button.textContent = old;
+    button.classList.remove("busy");
+    button.removeAttribute("aria-busy");
+    if (button.matches("[data-device]")) {
+      refreshDeviceControls();
+    } else if (button.matches("[data-ota]")) {
+      button.disabled = state.mode !== "wifi";
+    } else {
+      button.disabled = false;
+    }
+    setTimeout(() => button.classList.remove("ok"), 900);
+  }
+  return succeeded;
+}
+
+window.pairStart = (button) => clicked(button, "Starting...", async () => {
+  await api("/api/pairing/start", { method: "POST" });
+  await loadStatus({ forceControllers: true });
+});
+
+window.pairStop = (button) => clicked(button, "Stopping...", async () => {
+  await api("/api/pairing/stop", { method: "POST" });
+  await loadStatus({ forceControllers: true });
+});
+
+window.forgetController = (button, address) => {
+  if (!confirm(`Forget ${address}?`)) return;
+  clicked(button, "Forgetting...", async () => {
+    await api("/api/controllers/forget", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ address }),
+    });
+    await loadStatus({ forceControllers: true });
+  });
+};
+
+window.forgetAll = (button) => {
+  if (!confirm("Forget all bonded controllers?")) return;
+  clicked(button, "Forgetting...", async () => {
+    await api("/api/controllers/forget-all", { method: "POST" });
+    await loadStatus({ forceControllers: true });
+  });
+};
+
+$("mappingForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  clicked(button, "Saving...", async () => {
+    const body = new URLSearchParams({
+      assistant_short: $("as").value,
+      assistant_long: $("al").value,
+      capture_short: $("cs").value,
+      capture_long: $("cl").value,
+      long_press_ms: $("lp").value,
+      webui_timeout_seconds: $("wt").value,
+      disable_ap_on_suspend: $("ds").checked ? "on" : "off",
+    });
+    applyConfig(await api("/api/config/keymap", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    }));
+    $("mapstatus").textContent = "Mappings saved to flash";
+  });
+});
+
+$("wifiToggle").addEventListener("click", (event) => {
+  const enabling = !state.wifiActive;
+  clicked(event.currentTarget, enabling ? "Starting..." : "Stopping...", async () => {
+    await api(enabling ? "/api/webui/enable" : "/api/webui/disable", { method: "POST" });
+    if (state.mode === "wifi" && !enabling) {
+      $("toast").textContent = "Wi-Fi AP is stopping. This page will disconnect.";
+      stopPolling();
+    } else {
+      await loadStatus();
+    }
+  });
+});
+
+$("rebootButton").addEventListener("click", (event) => {
+  if (!confirm("Reboot the receiver now?")) return;
+  clicked(event.currentTarget, "Rebooting...", async () => {
+    state.restartingUntil = Date.now() + 15000;
+    try {
+      await api("/api/reboot", { method: "POST" });
+    } catch (error) {
+      state.restartingUntil = 0;
+      throw error;
+    }
+    state.backend = null;
+    state.deviceInfo = null;
+    state.bleReady = false;
+    setConnection("restarting", "Receiver restarting", "Reconnect after the receiver finishes booting.");
+    $("transportError").textContent = "";
+    $("toast").textContent = "Receiver is rebooting. Reconnect in a few seconds.";
+  });
+});
+
+$("firmwareForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  clicked(button, "Uploading...", async () => {
+    const file = $("firmware").files[0];
+    if (!file) throw new Error("Choose an application .bin first.");
+    $("upstatus").textContent = "Uploading firmware...";
+    $("upstatus").textContent = await api("/api/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+  });
+});
+
+$("connectUsb").addEventListener("click", (event) => {
+  clicked(event.currentTarget, "Connecting...", () => connectUsb(true));
+});
+
+$("disconnectUsb").addEventListener("click", async () => {
+  await usbApi.disconnect();
+  state.restartingUntil = 0;
+  state.backend = null;
+  setConnection("disconnected", "USB disconnected", "Choose Connect USB whenever you need to configure the receiver.");
+});
+
+for (const id of ["as", "al", "cs", "cl"]) {
+  $(id).innerHTML = actions.map((action) => `<option value="${action}">${action}</option>`).join("");
+}
+
+if (isDevicePage) {
+  state.backend = new HttpApi();
+  setConnection("wifi", "Connected over receiver Wi-Fi", "Configuration is using the local HTTP API at 192.168.4.1.");
+  startConnectedSession();
+} else if (WebHidTransport.isSupported()) {
+  setConnection("disconnected", "Receiver not connected", "Connect the receiver over USB without changing your Windows Wi-Fi.");
+  connectUsb(false);
+} else {
+  setConnection("unsupported", "WebHID is unavailable", "Open this page in a current desktop version of Chrome or Edge.");
+  $("transportError").textContent = "This browser cannot connect to the receiver over USB.";
+}
+</script>
+</body>
+</html>

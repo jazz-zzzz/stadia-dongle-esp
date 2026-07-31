@@ -53,6 +53,8 @@ static volatile bool s_usb_suspended;
 
 extern const char s_index_html_start[] asm("_binary_index_html_start");
 extern const char s_index_html_end[] asm("_binary_index_html_end");
+extern const char s_webhid_transport_js_start[] asm("_binary_webhid_transport_js_start");
+extern const char s_webhid_transport_js_end[] asm("_binary_webhid_transport_js_end");
 
 static void parse_form_value(const char *body, const char *key, char *out, size_t out_len);
 static void update_webui_deadline(void);
@@ -147,6 +149,13 @@ static esp_err_t index_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_send(req, s_index_html_start,
                            (ssize_t)(s_index_html_end - s_index_html_start - 1));
+}
+
+static esp_err_t webhid_transport_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/javascript");
+    return httpd_resp_send(req, s_webhid_transport_js_start,
+                           (ssize_t)(s_webhid_transport_js_end - s_webhid_transport_js_start - 1));
 }
 
 static esp_err_t status_handler(httpd_req_t *req)
@@ -305,7 +314,6 @@ static esp_err_t pairing_start_handler(httpd_req_t *req)
 static esp_err_t pairing_stop_handler(httpd_req_t *req)
 {
     controller_manager_stop_pairing();
-    dongle_state_set(DONGLE_STATE_NO_BOND_SETUP);
     return simple_ok(req);
 }
 
@@ -740,6 +748,7 @@ void web_server_start(bool explicit_request)
     cfg.max_uri_handlers = 18;
     ESP_ERROR_CHECK(httpd_start(&s_httpd, &cfg));
     register_uri("/", HTTP_GET, index_handler);
+    register_uri("/webhid_transport.js", HTTP_GET, webhid_transport_handler);
     register_uri("/api/status", HTTP_GET, status_handler);
     register_uri("/api/buttons", HTTP_GET, buttons_handler);
     register_uri("/api/battery", HTTP_GET, status_handler);
@@ -794,6 +803,11 @@ void web_server_stop(void)
 void web_server_notify_usb_suspend(bool suspended)
 {
     s_usb_suspended = suspended;
+}
+
+void web_server_notify_config_changed(void)
+{
+    s_deadline_set = false;
 }
 
 bool web_server_is_active(void)

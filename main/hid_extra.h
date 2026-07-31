@@ -5,7 +5,7 @@
 
 #include "device/usbd_pvt.h"
 
-#define HID_EXTRA_REPORT_DESC_LEN 90
+#define HID_EXTRA_REPORT_DESC_LEN 111
 
 void hid_extra_init(void);
 bool hid_extra_send_key_press(uint8_t modifier, uint8_t keycode);

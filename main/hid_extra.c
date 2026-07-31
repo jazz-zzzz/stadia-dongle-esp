@@ -3,6 +3,7 @@
 #include "dongle_config.h"
 #include "dongle_state.h"
 #include "status_led.h"
+#include "usb_config_protocol.h"
 
 #include "soc/usb_dwc_struct.h"
 #include "tinyusb.h"
@@ -27,6 +28,8 @@ static uint8_t s_rhport;
 static uint8_t s_ep_in;
 static bool s_open;
 static uint8_t s_report_buf[HID_EXTRA_EP_SIZE] TU_ATTR_ALIGNED(4);
+static uint8_t s_control_in[USB_CONFIG_REPORT_DATA_SIZE + 1] TU_ATTR_ALIGNED(4);
+static uint8_t s_control_out[USB_CONFIG_REPORT_DATA_SIZE + 1] TU_ATTR_ALIGNED(4);
 
 static const uint8_t s_hid_report_desc[HID_EXTRA_REPORT_DESC_LEN] = {
     0x05, 0x01, 0x09, 0x06, 0xa1, 0x01, 0x85, RID_KEYBOARD,
@@ -41,6 +44,10 @@ static const uint8_t s_hid_report_desc[HID_EXTRA_REPORT_DESC_LEN] = {
     0x05, 0x0c, 0x09, 0x01, 0xa1, 0x01, 0x85, RID_CONSUMER,
     0x15, 0x00, 0x26, 0xff, 0x03, 0x19, 0x00, 0x2a,
     0xff, 0x03, 0x75, 0x10, 0x95, 0x01, 0x81, 0x00,
+    0xc0,
+    0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01,
+    0x85, USB_CONFIG_REPORT_ID, 0x15, 0x00, 0x26, 0xff, 0x00,
+    0x75, 0x08, 0x95, USB_CONFIG_REPORT_DATA_SIZE, 0xb1, 0x02,
     0xc0
 };
 
@@ -51,6 +58,7 @@ const uint8_t *hid_extra_report_descriptor(void)
 
 void hid_extra_init(void)
 {
+    usb_config_protocol_init();
 }
 
 static bool hid_extra_ready(void)
@@ -216,37 +224,78 @@ static uint16_t hid_extra_driver_open(uint8_t rhport, tusb_desc_interface_t cons
 static bool hid_extra_driver_control(uint8_t rhport, uint8_t stage,
                                      tusb_control_request_t const *request)
 {
-    if (stage != CONTROL_STAGE_SETUP) return true;
-
-    if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE &&
-        tu_u16_low(request->wIndex) == HID_EXTRA_ITF_NUM) {
-        if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
-            request->bRequest == TUSB_REQ_GET_DESCRIPTOR) {
-            uint8_t desc_type = tu_u16_high(request->wValue);
-            if (desc_type == HID_DESC_TYPE_REPORT) {
-                return tud_control_xfer(rhport, request, (void *)(uintptr_t)s_hid_report_desc,
-                                        sizeof(s_hid_report_desc));
-            }
-            if (desc_type == HID_DESC_TYPE_HID) {
-                static const uint8_t hid_desc[] = {
-                    0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
-                    HID_EXTRA_REPORT_DESC_LEN & 0xff, HID_EXTRA_REPORT_DESC_LEN >> 8,
-                };
-                return tud_control_xfer(rhport, request, (void *)(uintptr_t)hid_desc, sizeof(hid_desc));
-            }
-        }
-
-        if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS) {
-            if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
-                static uint8_t zero[8] = {0};
-                uint16_t len = request->wLength < sizeof(zero) ? request->wLength : sizeof(zero);
-                return tud_control_xfer(rhport, request, zero, len);
-            }
-            return tud_control_status(rhport, request);
-        }
+    if (request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE ||
+        tu_u16_low(request->wIndex) != HID_EXTRA_ITF_NUM) {
+        return false;
     }
 
-    return false;
+    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD) {
+        if (stage != CONTROL_STAGE_SETUP) return true;
+        if (request->bRequest != TUSB_REQ_GET_DESCRIPTOR) return false;
+        uint8_t desc_type = tu_u16_high(request->wValue);
+        if (desc_type == HID_DESC_TYPE_REPORT) {
+            return tud_control_xfer(rhport, request, (void *)(uintptr_t)s_hid_report_desc,
+                                    sizeof(s_hid_report_desc));
+        }
+        if (desc_type == HID_DESC_TYPE_HID) {
+            static const uint8_t hid_desc[] = {
+                0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
+                HID_EXTRA_REPORT_DESC_LEN & 0xff, HID_EXTRA_REPORT_DESC_LEN >> 8,
+            };
+            return tud_control_xfer(rhport, request, (void *)(uintptr_t)hid_desc,
+                                    sizeof(hid_desc));
+        }
+        return false;
+    }
+
+    if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return false;
+
+    uint8_t report_type = tu_u16_high(request->wValue);
+    uint8_t report_id = tu_u16_low(request->wValue);
+    if (request->bRequest == HID_REQ_CONTROL_GET_REPORT &&
+        request->bmRequestType_bit.direction == TUSB_DIR_IN &&
+        report_type == HID_REPORT_TYPE_FEATURE &&
+        report_id == USB_CONFIG_REPORT_ID) {
+        if (stage != CONTROL_STAGE_SETUP) return true;
+        if (request->wLength < 2) return false;
+        s_control_in[0] = USB_CONFIG_REPORT_ID;
+        size_t payload_len = usb_config_protocol_read_response(
+            s_control_in + 1, sizeof(s_control_in) - 1);
+        uint16_t response_len = (uint16_t)(payload_len + 1);
+        if (response_len > request->wLength) response_len = request->wLength;
+        return tud_control_xfer(rhport, request, s_control_in, response_len);
+    }
+
+    if (request->bRequest == HID_REQ_CONTROL_SET_REPORT &&
+        request->bmRequestType_bit.direction == TUSB_DIR_OUT &&
+        report_type == HID_REPORT_TYPE_FEATURE &&
+        report_id == USB_CONFIG_REPORT_ID) {
+        if (stage == CONTROL_STAGE_SETUP) {
+            if (request->wLength == 0 || request->wLength > sizeof(s_control_out)) {
+                return false;
+            }
+            memset(s_control_out, 0, sizeof(s_control_out));
+            return tud_control_xfer(rhport, request, s_control_out, request->wLength);
+        }
+        if (stage == CONTROL_STAGE_ACK) {
+            const uint8_t *report = s_control_out;
+            size_t report_len = request->wLength;
+            if (report_len > 1 && report[0] == USB_CONFIG_REPORT_ID) {
+                report++;
+                report_len--;
+            }
+            usb_config_protocol_submit(report, report_len);
+        }
+        return true;
+    }
+
+    if (stage != CONTROL_STAGE_SETUP) return true;
+    if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
+        static uint8_t zero[8] = {0};
+        uint16_t len = request->wLength < sizeof(zero) ? request->wLength : sizeof(zero);
+        return tud_control_xfer(rhport, request, zero, len);
+    }
+    return tud_control_status(rhport, request);
 }
 
 static bool hid_extra_driver_xfer(uint8_t rhport, uint8_t ep_addr,

@@ -70,6 +70,22 @@ int controller_manager_list(controller_info_t *out, int max_count)
     return count;
 }
 
+static void update_state_after_pairing(void)
+{
+    dongle_status_t status;
+    dongle_state_get_status(&status);
+    if (status.state != DONGLE_STATE_PAIRING) return;
+
+    if (status.connected_count > 0) {
+        dongle_state_set(status.webui_active
+                             ? DONGLE_STATE_CONNECTED_WEBUI_ACTIVE
+                             : DONGLE_STATE_CONNECTED);
+    } else {
+        dongle_state_set(status.stored_bonds > 0 ? DONGLE_STATE_SCANNING
+                                                 : DONGLE_STATE_NO_BOND_SETUP);
+    }
+}
+
 bool controller_manager_is_pairing_mode(void)
 {
     if (!s_lock) return false;
@@ -79,6 +95,7 @@ bool controller_manager_is_pairing_mode(void)
         s_pairing_deadline_us = 0;
         xSemaphoreGive(s_lock);
         dongle_state_set_pairing_mode(false);
+        update_state_after_pairing();
         return false;
     }
     bool result = s_pairing;
@@ -105,6 +122,8 @@ void controller_manager_stop_pairing(void)
     s_pairing_deadline_us = 0;
     xSemaphoreGive(s_lock);
     dongle_state_set_pairing_mode(false);
+
+    update_state_after_pairing();
 }
 
 bool controller_manager_should_connect(const void *ble_addr_ptr, bool name_matches, bool directed)

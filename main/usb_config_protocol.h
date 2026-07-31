@@ -1,0 +1,58 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#define USB_CONFIG_REPORT_ID 0x10
+#define USB_CONFIG_REPORT_DATA_SIZE 63
+#define USB_CONFIG_HEADER_SIZE 8
+#define USB_CONFIG_MAX_PAYLOAD (USB_CONFIG_REPORT_DATA_SIZE - USB_CONFIG_HEADER_SIZE)
+#define USB_CONFIG_MAGIC 0x53
+#define USB_CONFIG_PROTOCOL_VERSION 1
+
+typedef enum {
+    USB_CONFIG_CMD_PING = 0x01,
+    USB_CONFIG_CMD_GET_DEVICE_INFO = 0x02,
+    USB_CONFIG_CMD_GET_STATUS = 0x03,
+    USB_CONFIG_CMD_GET_CONFIG = 0x04,
+    USB_CONFIG_CMD_SET_CONFIG = 0x05,
+    USB_CONFIG_CMD_GET_CONTROLLER_COUNT = 0x06,
+    USB_CONFIG_CMD_GET_CONTROLLER = 0x07,
+    USB_CONFIG_CMD_GET_INPUT = 0x08,
+    USB_CONFIG_CMD_START_PAIRING = 0x10,
+    USB_CONFIG_CMD_STOP_PAIRING = 0x11,
+    USB_CONFIG_CMD_FORGET_CONTROLLER = 0x12,
+    USB_CONFIG_CMD_FORGET_ALL = 0x13,
+    USB_CONFIG_CMD_START_WIFI = 0x14,
+    USB_CONFIG_CMD_STOP_WIFI = 0x15,
+    USB_CONFIG_CMD_REBOOT = 0x16,
+} usb_config_command_t;
+
+typedef enum {
+    USB_CONFIG_STATUS_OK = 0,
+    USB_CONFIG_STATUS_PENDING = 1,
+    USB_CONFIG_STATUS_BAD_MAGIC = 2,
+    USB_CONFIG_STATUS_UNSUPPORTED_VERSION = 3,
+    USB_CONFIG_STATUS_UNKNOWN_COMMAND = 4,
+    USB_CONFIG_STATUS_INVALID_PAYLOAD = 5,
+    USB_CONFIG_STATUS_INTERNAL_ERROR = 6,
+    USB_CONFIG_STATUS_BUSY = 7,
+    USB_CONFIG_STATUS_NOT_FOUND = 8,
+    USB_CONFIG_STATUS_UNSUPPORTED = 9,
+} usb_config_status_t;
+
+enum {
+    USB_CONFIG_CAP_KEYMAP = 1u << 0,
+    USB_CONFIG_CAP_CONTROLLERS = 1u << 1,
+    USB_CONFIG_CAP_LIVE_INPUT = 1u << 2,
+    USB_CONFIG_CAP_PAIRING = 1u << 3,
+    USB_CONFIG_CAP_FORGET = 1u << 4,
+    USB_CONFIG_CAP_WIFI_CONTROL = 1u << 5,
+    USB_CONFIG_CAP_REBOOT = 1u << 6,
+};
+
+void usb_config_protocol_init(void);
+bool usb_config_protocol_submit(const uint8_t *report, size_t report_len);
+size_t usb_config_protocol_read_response(uint8_t *report, size_t report_len);
+

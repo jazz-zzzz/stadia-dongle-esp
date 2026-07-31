@@ -94,7 +94,7 @@ test("utility HID descriptor advertises one 63-byte vendor feature report", asyn
     header.match(/HID_EXTRA_REPORT_DESC_LEN\s+(\d+)/)[1],
   );
   assert.equal(bytes.length, declaredLength);
-  assert.deepEqual(bytes.slice(-21), [
+  assert.deepEqual(bytes.slice(-23), [
     0x06,
     0x00,
     0xff,
@@ -109,6 +109,8 @@ test("utility HID descriptor advertises one 63-byte vendor feature report", asyn
     0x26,
     0xff,
     0x00,
+    0x09,
+    0x02,
     0x75,
     0x08,
     0x95,

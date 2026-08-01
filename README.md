@@ -95,9 +95,9 @@ Xbox 360 报告没有 Assistant 和 Capture，因此它们通过独立的键盘�
 | Stadia 按键 | 短按 | 长按，默认 1 秒 |
 |---|---|---|
 | Assistant | F14 | 无操作 |
-| Capture | PrintScreen | F15 |
+| Capture | F12（Steam 截图） | F15 |
 
-F14 和 F15 默认不会触发 Windows 系统功能，很适合交给 Steam Input、AutoHotkey 或其他工具自行映射。也可以在 Web GUI 中改成 F13–F24、媒体键、方向键或其他常用按键。
+F12 默认用于 Steam 截图。F14 和 F15 通常不会触发 Windows 系统功能，很适合交给 Steam Input、AutoHotkey 或其他工具自行映射。也可以在 Web GUI 中改成 F12–F24、PrintScreen、媒体键、方向键或其他常用按键。
 
 ## 震动
 

@@ -136,7 +136,7 @@ test("configuration page is Chinese and exposes firmware mapping defaults", asyn
   assert.match(index, /<h2>额外按键<\/h2>/);
   assert.match(index, /assistant_short:\s*"f14"/);
   assert.match(index, /assistant_long:\s*"none"/);
-  assert.match(index, /capture_short:\s*"printscreen"/);
+  assert.match(index, /capture_short:\s*"f12"/);
   assert.match(index, /capture_long:\s*"f15"/);
   assert.match(index, /long_press_ms:\s*1000/);
   assert.match(index, /webui_timeout_seconds:\s*120/);
@@ -150,7 +150,8 @@ test("Wi-Fi AP is opt-in, temporary, and still recoverable", async () => {
   const store = await source("../main/config_store.c");
   const appMain = await source("../main/main.c");
   const webServer = await source("../main/web_server.c");
-  assert.match(store, /CFG_SCHEMA\s+4/);
+  assert.match(store, /CFG_SCHEMA\s+5/);
+  assert.match(store, /capture_short_action\s*=\s*DONGLE_ACTION_KEY_F12/);
   assert.match(store, /webui_auto_start_if_no_bond\s*=\s*false/);
   assert.match(
     store,
@@ -167,6 +168,17 @@ test("Wi-Fi AP is opt-in, temporary, and still recoverable", async () => {
     /if\s*\(!explicit_request\)[\s\S]*?webui_auto_start_if_no_bond[\s\S]*?controller_manager_bond_count\(\)\s*!=\s*0/,
   );
   assert.doesNotMatch(webServer, /any_controller_connected/);
+});
+
+test("F12 is appended compatibly and emits the standard keyboard usage", async () => {
+  const header = await source("../main/config_store.h");
+  const actions = await source("../main/button_actions.c");
+  assert.match(
+    header,
+    /DONGLE_ACTION_CONSUMER_SCAN_PREV,\s*DONGLE_ACTION_KEY_F12,/,
+  );
+  assert.equal(ACTION_NAMES.at(-1), "f12");
+  assert.match(actions, /DONGLE_ACTION_KEY_F12:\s*return\s*0x45/);
 });
 
 test("controller polling preserves interactive nodes and gates capabilities", async () => {

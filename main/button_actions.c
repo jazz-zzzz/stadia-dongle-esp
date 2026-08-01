@@ -31,6 +31,7 @@ typedef struct {
 static uint8_t action_to_key(uint8_t action)
 {
     switch ((dongle_action_t)action) {
+    case DONGLE_ACTION_KEY_F12: return 0x45;
     case DONGLE_ACTION_KEY_F13: return 0x68;
     case DONGLE_ACTION_KEY_F14: return 0x69;
     case DONGLE_ACTION_KEY_PRINTSCREEN: return 0x46;

@@ -92,6 +92,7 @@ export const ACTION_NAMES = Object.freeze([
   "mute",
   "next_track",
   "prev_track",
+  "f12",
 ]);
 
 const STATE_NAMES = Object.freeze([

@@ -190,9 +190,10 @@
 import { CAPABILITY, StadiaUsbApi, WebHidTransport } from "./webhid_transport.js";
 
 const $ = (id) => document.getElementById(id);
-const actions = ["none","f13","f14","f15","f16","f17","f18","f19","f20","f21","f22","f23","f24","printscreen","escape","tab","space","enter","backspace","insert","delete","home","end","page_up","page_down","arrow_up","arrow_down","arrow_left","arrow_right","volume_up","volume_down","mute","play_pause","next_track","prev_track","remote_wake_only"];
+const actions = ["none","f12","f13","f14","f15","f16","f17","f18","f19","f20","f21","f22","f23","f24","printscreen","escape","tab","space","enter","backspace","insert","delete","home","end","page_up","page_down","arrow_up","arrow_down","arrow_left","arrow_right","volume_up","volume_down","mute","play_pause","next_track","prev_track","remote_wake_only"];
 const actionLabels = Object.freeze({
   none: "无操作",
+  f12: "F12（Steam 截图）",
   printscreen: "截图（Print Screen）",
   escape: "Esc",
   tab: "Tab",
@@ -220,7 +221,7 @@ const actionLabels = Object.freeze({
 const defaultMapping = Object.freeze({
   assistant_short: "f14",
   assistant_long: "none",
-  capture_short: "printscreen",
+  capture_short: "f12",
   capture_long: "f15",
   long_press_ms: 1000,
   webui_timeout_seconds: 120,

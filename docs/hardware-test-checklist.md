@@ -16,7 +16,7 @@
 2. 确认页面显示 **USB 已连接**，同时 Windows 原来的 Wi-Fi 没有断开。
 3. 确认固件版本、USB 状态、手柄名称、地址、电量和实时输入能刷新。
 4. 按动 A、Assistant、Capture，移动两个摇杆并按下两个扳机，确认页面数据变化。
-5. 确认默认映射为 Assistant 短按 `F14`、长按无操作、Capture 短按 `PrintScreen`、长按 `F15`。
+5. 确认默认映射为 Assistant 短按 `F14`、长按无操作、Capture 短按 `F12`、长按 `F15`。
 6. 将 Assistant 短按动作临时改为 `F16` 并保存；刷新页面并重新连接 USB，确认 `F16` 仍然保留，证明 NVS 写入成功。
 7. 点击 **开始配对**，确认状态进入配对中；再点击 **停止配对**，确认退出配对。
 8. 点击 **启动 Wi-Fi 热点**，确认出现 `StadiaDongle-XXXX`，但 Windows 不需要切换过去。
@@ -43,8 +43,8 @@
 
 1. 在 Windows 游戏控制器测试页确认 A/B/X/Y、方向键、摇杆和扳机正常。
 2. 在支持 XInput 震动的游戏或测试程序中确认双马达震动仍能传到 Stadia 手柄。
-3. 短按 Capture，确认默认 `PrintScreen` 输出正常。
-4. 长按 Capture，确认默认输出 `F15`，且松开后不会再触发 `PrintScreen`。
+3. 短按 Capture，确认默认输出 `F12`，并能触发 Steam 截图。
+4. 长按 Capture，确认默认输出 `F15`，且松开后不会再触发 `F12`。
 5. 同时按住 Assistant + Capture 约 2 秒，确认鼠标模式仍能进入和退出。
 6. 如需 OTA，连接 `StadiaDongle-XXXX` 并打开 `http://192.168.4.1`，确认上传入口仍可用。
 
